@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #e8e2d4;
+  color: #16130d;
+  font-family: 'IBM Plex Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Impede o "rubber band" da pagina inteira no iOS. */
+  overscroll-behavior: none;
+}
+
+/* 16px em todos os campos: abaixo disso o iOS dá zoom ao focar. */
+input,
+select,
+textarea,
+button {
+  font-size: 16px;
+  font-family: inherit;
+  color: inherit;
+}
+
+/* O select do iOS ignora font-family sem isto. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+}
+
+/* Remove as setinhas de input number no iOS/Android. */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Sem highlight azul de toque; o feedback visual é o nosso. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Utilitários do vocabulário visual                                   */
+/* ------------------------------------------------------------------ */
+
+/* Rolagem com inércia do iOS, sem barra visível e sem vazar scroll
+   para o elemento pai. */
+.rolagem {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.rolagem::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hachura diagonal = comprometido/travado. Sólido tinta = gasto livre.
+   Vazio = disponível. Esse par se repete na régua da Home, nas barras do
+   Resumo e nas colunas da Projeção. */
+.hachura {
+  background-image: repeating-linear-gradient(45deg, #16130d 0 2px, transparent 2px 4px);
+}
+
+/* Barra de processamento: tracejado que corre, nunca spinner. */
+.correndo {
+  background-image: repeating-linear-gradient(90deg, #d2360a 0 12px, transparent 12px 22px);
+  background-size: 44px 100%;
+}
+
+/* Ruído de papel. Sem ele o app fica plano e perde a leitura de impresso. */
+.ruido {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+}

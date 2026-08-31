@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#211E17; -webkit-font-smoothing:antialiased; }
+  a { color:#D2360A; text-decoration:none; }
+  a:hover { color:#8F2406; }
+  input, select, textarea { font-size:16px; font-family:inherit; }
+  .rolagem { -webkit-overflow-scrolling:touch; overscroll-behavior:contain; scrollbar-width:none; }
+  .rolagem::-webkit-scrollbar { display:none; }
+  @keyframes carimbo { 0%{transform:scale(.9) rotate(-2deg);opacity:0} 55%{transform:scale(1.04) rotate(.5deg);opacity:1} 100%{transform:scale(1) rotate(0);opacity:1} }
+  @keyframes correr { 0%{background-position:0 0} 100%{background-position:44px 0} }
+  @keyframes subirValor { 0%{transform:translateY(10px);opacity:0} 100%{transform:translateY(0);opacity:1} }
+</style>
+<script type="module">
+  import * as API from "./api.js";
+  window.API = API;
+  window.dispatchEvent(new Event("api-pronta"));
+</script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#211E17;padding:20px 0">
+<div style="position:relative;width:390px;height:844px;overflow:hidden;background:#E8E2D4;color:#16130D;font-family:'IBM Plex Sans',sans-serif;display:flex;flex-direction:column;border-radius:44px;box-shadow:0 0 0 10px #0E0C08,0 30px 70px rgba(0,0,0,.6)">
+
+  <div style="position:absolute;inset:0;pointer-events:none;z-index:40;opacity:.45;mix-blend-mode:multiply;background-image:url(data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='160'%20height='160'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.75'%20numOctaves='4'/%3E%3C/filter%3E%3Crect%20width='160'%20height='160'%20filter='url(%23n)'%20opacity='0.3'/%3E%3C/svg%3E)"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 26px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;flex:none;z-index:20">
+    <span>9:41</span>
+    <span style="opacity:.55">▮▮▮ ⌁ 87%</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px 10px;border-bottom:2px solid #16130D;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;flex:none;z-index:20;gap:10px;white-space:nowrap">
+    <span style="overflow:hidden;text-overflow:ellipsis">{{ cabecalhoEsq }}</span>
+    <span style="opacity:.55;flex:none">{{ cabecalhoDir }}</span>
+  </div>
+
+  <div class="rolagem" style="flex:1;overflow-y:auto;overflow-x:hidden;position:relative">
+
+    <sc-if value="{{ telaHome }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Home" style="padding-bottom:8px">
+        <div style="padding:18px 20px 0">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.6">Disponível de fato</div>
+          <div key="{{ chaveSaldo }}" style="display:flex;align-items:flex-end;gap:6px;margin-top:-2px;animation:subirValor .45s cubic-bezier(.2,.9,.25,1)">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;padding-bottom:15px">R$</span>
+            <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:104px;line-height:.82;letter-spacing:-.01em">{{ heroInt }}<span style="color:#D2360A">,{{ heroCent }}</span></span>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.02em;margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline">
+            <span style="opacity:.55">Renda</span><span style="font-weight:600">{{ fmtRenda }}</span>
+            <span style="opacity:.4">−</span>
+            <span style="opacity:.55">Comprometido</span><span style="font-weight:600;color:#D2360A">{{ fmtComprometido }}</span>
+            <span style="opacity:.4">−</span>
+            <span style="opacity:.55">Gasto</span><span style="font-weight:600">{{ fmtGastoLivre }}</span>
+          </div>
+        </div>
+
+        <div style="padding:16px 20px 0">
+          <div style="display:flex;height:18px;border:2px solid #16130D">
+            <sc-for list="{{ blocos }}" as="b" hint-placeholder-count="24">
+              <div style="flex:1;border-right:1px solid rgba(22,19,13,.2);background:{{ b.fundo }}"></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border:1px solid #16130D;background-image:repeating-linear-gradient(45deg,#16130D 0 2px,transparent 2px 4px)"></span>comprometido</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;background:#16130D"></span>gasto livre</span>
+            <span style="opacity:.55">{{ diasRestantes }}d restantes</span>
+          </div>
+        </div>
+
+        <div style="margin:16px 20px 0;border:2px solid #16130D;display:flex;align-items:stretch">
+          <div style="flex:1;padding:11px 14px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.65">Ritmo diário</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;opacity:.45;margin-top:4px">até {{ fimDoMes }}</div>
+          </div>
+          <div style="background:#D2360A;color:#F6F1E4;padding:9px 15px;display:flex;align-items:baseline;gap:4px">
+            <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:44px;line-height:1">{{ fmtRitmo }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em">/DIA</span>
+          </div>
+        </div>
+
+        <div style="padding:20px 20px 0">
+          <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;border-bottom:1px solid #16130D;padding-bottom:6px">
+            <span>Últimos lançamentos</span><span>Valor</span>
+          </div>
+          <sc-if value="{{ semGastos }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:26px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;opacity:.5;line-height:1.6">Folha em branco.<br />Registre o primeiro gasto abaixo.</div>
+          </sc-if>
+          <sc-for list="{{ recentes }}" as="g" hint-placeholder-count="4">
+            <div style="position:relative;overflow:hidden;border-bottom:1px solid rgba(22,19,13,.16)">
+              <div style="position:absolute;inset:0;display:flex;justify-content:flex-end">
+                <div onClick="{{ g.onEditar }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#16130D;color:#F6F1E4;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em">EDITAR</div>
+                <div onClick="{{ g.onExcluir }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#D2360A;color:#F6F1E4;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em">EXCLUIR</div>
+              </div>
+              <div onPointerDown="{{ g.onDown }}" onPointerMove="{{ g.onMove }}" onPointerUp="{{ g.onUp }}" onPointerCancel="{{ g.onUp }}" style="position:relative;background:#E8E2D4;display:flex;justify-content:space-between;align-items:center;padding:12px 0;min-height:44px;touch-action:pan-y;transition:{{ g.transicao }};transform:{{ g.transform }}">
+                <div style="display:flex;flex-direction:column;gap:3px;padding-right:10px">
+                  <span style="font-size:15px;font-weight:500">{{ g.descricao }}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.5">{{ g.categoria }} · {{ g.quando }}</span>
+                </div>
+                <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:30px;line-height:1;padding-right:2px">{{ g.valor }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaResumo }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Resumo" style="padding:18px 20px 10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;border:2px solid #16130D;padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase">
+          <span onClick="{{ mesAnterior }}" style="padding:6px 10px;min-height:32px;display:flex;align-items:center">◀</span>
+          <span style="font-weight:600">{{ mesRotulo }}</span>
+          <span onClick="{{ mesSeguinte }}" style="padding:6px 10px;min-height:32px;display:flex;align-items:center">▶</span>
+        </div>
+        <div style="display:flex;gap:0;margin-top:14px;border:2px solid #16130D">
+          <div style="flex:1;padding:10px 12px;border-right:2px solid #16130D">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;opacity:.6">Total do mês</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:38px;line-height:1.05">{{ resumoTotal }}</div>
+          </div>
+          <div style="flex:1;padding:10px 12px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;opacity:.6">Média diária</div>
+            <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:38px;line-height:1.05">{{ resumoMedia }}</div>
+          </div>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:22px 0 4px">Por categoria</div>
+        <sc-for list="{{ categorias }}" as="c" hint-placeholder-count="6">
+          <div onClick="{{ c.onFiltrar }}" style="padding:12px 0;border-bottom:1px solid rgba(22,19,13,.16);min-height:44px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase">{{ c.rotulo }}</span>
+              <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:26px;line-height:1">{{ c.total }}</span>
+            </div>
+            <div style="display:flex;height:12px;border:1px solid #16130D;background:transparent">
+              <div style="width:{{ c.larguraComprometido }};background-image:repeating-linear-gradient(45deg,#16130D 0 2px,transparent 2px 4px)"></div>
+              <div style="width:{{ c.larguraLivre }};background:#D2360A"></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaHistorico }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Historico" style="padding:16px 20px 10px">
+        <input value="{{ busca }}" onChange="{{ setBusca }}" placeholder="buscar lançamento…" style="width:100%;box-sizing:border-box;border:2px solid #16130D;background:#F4EFE2;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:16px;outline:none;color:#16130D" />
+        <div style="display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:4px" class="rolagem">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+            <div onClick="{{ c.onClick }}" style="flex:none;padding:8px 12px;min-height:36px;display:flex;align-items:center;border:1.5px solid #16130D;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;background:{{ c.fundo }};color:{{ c.cor }}">{{ c.rotulo }}</div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ historicoVazio }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;opacity:.5;line-height:1.6;text-align:center">Nenhum lançamento com esse filtro.</div>
+        </sc-if>
+        <sc-for list="{{ dias }}" as="d" hint-placeholder-count="3">
+          <div style="margin-top:20px">
+            <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;border-bottom:2px solid #16130D;padding-bottom:5px">
+              <span>{{ d.rotulo }}</span><span style="opacity:.55">{{ d.total }}</span>
+            </div>
+            <sc-for list="{{ d.itens }}" as="g" hint-placeholder-count="2">
+              <div style="position:relative;overflow:hidden;border-bottom:1px solid rgba(22,19,13,.16)">
+                <div style="position:absolute;inset:0;display:flex;justify-content:flex-end">
+                  <div onClick="{{ g.onEditar }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#16130D;color:#F6F1E4;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em">EDITAR</div>
+                  <div onClick="{{ g.onExcluir }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#D2360A;color:#F6F1E4;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em">EXCLUIR</div>
+                </div>
+                <div onPointerDown="{{ g.onDown }}" onPointerMove="{{ g.onMove }}" onPointerUp="{{ g.onUp }}" onPointerCancel="{{ g.onUp }}" style="position:relative;background:#E8E2D4;display:flex;justify-content:space-between;align-items:center;padding:11px 0;min-height:44px;touch-action:pan-y;transition:{{ g.transicao }};transform:{{ g.transform }}">
+                  <div style="display:flex;flex-direction:column;gap:3px;padding-right:10px">
+                    <span style="font-size:15px;font-weight:500">{{ g.descricao }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.5">{{ g.categoria }} · {{ g.quando }}</span>
+                  </div>
+                  <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:28px;line-height:1">{{ g.valor }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaCompromissos }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Compromissos" style="padding:18px 20px 10px">
+        <div style="border:2px solid #16130D;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-end;background:#16130D;color:#F6F1E4">
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.7">Comprometido em {{ mesRotulo }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.5;margin-top:5px">{{ resumoCompromissos }}</div>
+          </div>
+          <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:44px;line-height:.9">{{ fmtComprometido }}</div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:22px 0 2px">Contas fixas</div>
+        <sc-for list="{{ contasFixas }}" as="c" hint-placeholder-count="2">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(22,19,13,.16);min-height:44px">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:15px;font-weight:500">{{ c.descricao }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.5">vence dia {{ c.dia }} · todo mês</span>
+            </div>
+            <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:28px;line-height:1">{{ c.valor }}</span>
+          </div>
+        </sc-for>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:24px 0 2px">Parcelamentos</div>
+        <sc-for list="{{ parcelamentos }}" as="p" hint-placeholder-count="1">
+          <div style="padding:13px 0;border-bottom:1px solid rgba(22,19,13,.16)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:15px;font-weight:500">{{ p.descricao }}</span>
+              <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:28px;line-height:1">{{ p.valor }}</span>
+            </div>
+            <div style="display:flex;gap:3px;margin:9px 0 6px">
+              <sc-for list="{{ p.ticks }}" as="t" hint-placeholder-count="12">
+                <div style="flex:1;height:9px;border:1px solid #16130D;background:{{ t.fundo }}"></div>
+              </sc-for>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.6">{{ p.progresso }}</div>
+          </div>
+        </sc-for>
+
+        <div onClick="{{ irProjecao }}" style="margin-top:22px;border:2px solid #16130D;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;min-height:44px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase">
+          <span>Ver projeção de 6 meses</span><span style="color:#D2360A">→</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaProjecao }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Projecao" style="padding:18px 20px 10px">
+        <div onClick="{{ irCompromissos }}" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.6;margin-bottom:16px">← Compromissos</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.7;opacity:.65;margin-bottom:18px">A linha é a sua renda. A coluna cheia é o que já está travado antes do mês começar.</div>
+        <sc-for list="{{ projecao }}" as="m" hint-placeholder-count="6">
+          <div style="padding:11px 0;border-bottom:1px solid rgba(22,19,13,.16)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:{{ m.peso }}">{{ m.rotulo }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;opacity:.55">sobram {{ m.sobra }}</span>
+            </div>
+            <div style="position:relative;height:22px;border:1.5px solid #16130D;background:#F4EFE2">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:{{ m.largura }};background-image:repeating-linear-gradient(45deg,#16130D 0 2px,transparent 2px 4px)"></div>
+              <div style="position:absolute;left:6px;top:0;bottom:0;display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#16130D;mix-blend-mode:multiply">{{ m.comprometido }}</div>
+            </div>
+            <sc-if value="{{ m.temAlivio }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:7px;display:inline-flex;align-items:center;gap:6px;background:#D2360A;color:#F6F1E4;padding:4px 9px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase">↓ {{ m.alivio }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaConfig }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Ajustes" style="padding:18px 20px 10px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55">Renda de {{ mesRotulo }}</div>
+        <div style="display:flex;align-items:center;gap:10px;border:2px solid #16130D;padding:10px 14px;margin-top:8px;background:#F4EFE2">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;opacity:.6">R$</span>
+          <input value="{{ rendaCampo }}" onChange="{{ setRendaCampo }}" inputMode="decimal" style="flex:1;border:none;background:transparent;outline:none;font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:40px;color:#16130D;width:100%;padding:0" />
+          <div onClick="{{ salvarRenda }}" style="background:#16130D;color:#F6F1E4;padding:10px 14px;min-height:44px;display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em">SALVAR</div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:26px 0 8px">Conexão</div>
+        <div style="border:2px solid #16130D;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;min-height:44px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px">{{ statusSaude }}</span>
+          <div onClick="{{ testarSaude }}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#D2360A;padding:8px 0">testar</div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin:26px 0 8px">Dados</div>
+        <div onClick="{{ exportarCsv }}" style="border:2px solid #16130D;padding:13px 14px;min-height:44px;display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase">
+          <span>Exportar CSV</span><span style="color:#D2360A">↓</span>
+        </div>
+        <div onClick="{{ refazerOnboarding }}" style="border:2px solid rgba(22,19,13,.35);padding:13px 14px;margin-top:10px;min-height:44px;display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.7">
+          <span>Refazer configuração inicial</span><span>↺</span>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.4;margin-top:22px;line-height:1.7">Dados mockados. A camada de API está isolada em api.js — troque a base URL para plugar o backend.</div>
+      </div>
+    </sc-if>
+
+    <div style="height:130px"></div>
+  </div>
+
+  <sc-if value="{{ mostrarErro }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:16px;right:16px;bottom:186px;z-index:32;border:1.5px solid #16130D;background:#F4EFE2;padding:11px 14px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.5;display:flex;gap:10px;align-items:flex-start;animation:carimbo .28s ease-out">
+      <span style="opacity:.5">≠</span><span style="flex:1">{{ erro }}</span>
+      <span onClick="{{ limparErro }}" style="opacity:.5;padding:0 4px">✕</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mostrarConfirmacao }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:14px;right:14px;bottom:176px;z-index:33;border:2px solid #16130D;background:#F4EFE2;animation:carimbo .34s cubic-bezier(.2,.9,.25,1);box-shadow:6px 6px 0 rgba(22,19,13,.9)">
+      <div style="background:#16130D;color:#F6F1E4;padding:7px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;display:flex;justify-content:space-between">
+        <span>Registrado</span><span style="opacity:.6">{{ contagemDesfazer }}</span>
+      </div>
+      <div style="padding:12px 14px;display:flex;align-items:center;gap:10px">
+        <input value="{{ confValor }}" onChange="{{ setConfValor }}" inputMode="decimal" style="width:118px;border:1.5px solid #16130D;background:#E8E2D4;padding:4px 8px;font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:36px;color:#16130D;outline:none" />
+        <select value="{{ confCategoria }}" onChange="{{ setConfCategoria }}" style="flex:1;border:1.5px solid #16130D;background:#E8E2D4;padding:9px 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#16130D;outline:none;min-height:44px">
+          <sc-for list="{{ opcoesCategoria }}" as="o" hint-placeholder-count="9">
+            <option value="{{ o.valor }}">{{ o.rotulo }}</option>
+          </sc-for>
+        </select>
+      </div>
+      <div style="padding:0 14px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.6">{{ confDescricao }}</div>
+      <div style="display:flex;border-top:1.5px solid #16130D">
+        <div onClick="{{ desfazer }}" style="flex:1;padding:12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;border-right:1.5px solid #16130D;min-height:44px">Desfazer</div>
+        <div onClick="{{ confirmarEdicao }}" style="flex:1;padding:12px;text-align:center;background:#D2360A;color:#F6F1E4;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;min-height:44px">Ok</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mostrarSugestao }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:14px;right:14px;bottom:176px;z-index:33;border:2px solid #D2360A;background:#F4EFE2;animation:carimbo .34s cubic-bezier(.2,.9,.25,1);box-shadow:6px 6px 0 #D2360A">
+      <div style="background:#D2360A;color:#F6F1E4;padding:7px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase">Isto vai se repetir — confirme</div>
+      <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.55">{{ sugestaoTexto }}</div>
+        <div style="display:flex;gap:8px">
+          <input value="{{ sugValor }}" onChange="{{ setSugValor }}" inputMode="decimal" style="width:110px;border:1.5px solid #16130D;background:#E8E2D4;padding:4px 8px;font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:32px;color:#16130D;outline:none" />
+          <input value="{{ sugCampo2 }}" onChange="{{ setSugCampo2 }}" inputMode="numeric" style="flex:1;border:1.5px solid #16130D;background:#E8E2D4;padding:9px 10px;font-family:'IBM Plex Mono',monospace;font-size:14px;color:#16130D;outline:none;min-height:44px" />
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.55;letter-spacing:.1em;text-transform:uppercase">{{ sugLegenda }}</div>
+      </div>
+      <div style="display:flex;border-top:1.5px solid #16130D">
+        <div onClick="{{ descartarSugestao }}" style="flex:1;padding:12px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;border-right:1.5px solid #16130D;min-height:44px">Descartar</div>
+        <div onClick="{{ confirmarSugestao }}" style="flex:1;padding:12px;text-align:center;background:#16130D;color:#F6F1E4;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;min-height:44px">Cadastrar</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="flex:none;position:relative;z-index:30;background:#E8E2D4;border-top:2px solid #16130D">
+    <sc-if value="{{ processando }}" hint-placeholder-val="{{ false }}">
+      <div style="height:4px;background-image:repeating-linear-gradient(90deg,#D2360A 0 12px,transparent 12px 22px);background-size:44px 100%;animation:correr .7s linear infinite"></div>
+    </sc-if>
+    <div style="padding:10px 14px 6px;display:flex;align-items:center;gap:9px">
+      <input value="{{ entrada }}" onChange="{{ setEntrada }}" onKeyDown="{{ aoTeclar }}" placeholder="{{ placeholderAtual }}" style="flex:1;border:2px solid #16130D;background:#F4EFE2;padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:16px;color:#16130D;outline:none;min-height:44px;box-sizing:border-box;width:100%" />
+      <div onClick="{{ ditar }}" style="width:46px;height:46px;flex:none;border:2px solid #16130D;display:flex;align-items:center;justify-content:center;font-size:16px;background:{{ fundoMic }};color:{{ corMic }}">◍</div>
+      <div onClick="{{ enviar }}" style="width:46px;height:46px;flex:none;background:#16130D;color:#F6F1E4;display:flex;align-items:center;justify-content:center;font-size:17px">↵</div>
+    </div>
+    <div style="display:flex;padding:2px 8px 30px">
+      <sc-for list="{{ navegacao }}" as="n" hint-placeholder-count="5">
+        <div onClick="{{ n.onClick }}" style="flex:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:{{ n.cor }}">
+          <span style="width:16px;height:3px;background:{{ n.marca }}"></span>
+          <span>{{ n.rotulo }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{ mostrarOnboarding }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Onboarding" style="position:absolute;inset:0;z-index:38;background:#16130D;color:#F6F1E4;display:flex;flex-direction:column;padding:70px 26px 44px;box-sizing:border-box">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;opacity:.5">Folha nova · passo {{ passo }} de 3</div>
+      <div style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:56px;line-height:.92;margin-top:16px;max-width:280px">{{ onbTitulo }}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.65;opacity:.65;margin-top:14px;max-width:300px">{{ onbTexto }}</div>
+      <div style="margin-top:34px;display:flex;align-items:center;gap:10px;border-bottom:2px solid #F6F1E4;padding-bottom:6px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:16px;opacity:.55">{{ onbPrefixo }}</span>
+        <input value="{{ onbCampo }}" onChange="{{ setOnbCampo }}" inputMode="decimal" placeholder="{{ onbPlaceholder }}" style="flex:1;border:none;background:transparent;outline:none;font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:52px;color:#F6F1E4;width:100%;padding:0" />
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;gap:10px">
+        <sc-if value="{{ podePular }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ pularPasso }}" style="flex:1;border:2px solid rgba(246,241,228,.4);padding:15px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;min-height:44px">Pular</div>
+        </sc-if>
+        <div onClick="{{ avancarPasso }}" style="flex:2;background:#D2360A;color:#F6F1E4;padding:15px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;min-height:44px">{{ onbBotao }}</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="position:absolute;left:50%;bottom:9px;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:rgba(22,19,13,.35);z-index:45;pointer-events:none"></div>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:430,&quot;height&quot;:900}}">
+const PLACEHOLDERS = [
+  "gastei 32 no uber…",
+  "almoço 24 reais",
+  "comprei um fone em 6x de 90",
+  "todo mês pago 99 de internet",
+  "mercado 187,40",
+];
+const fmt = (v) => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const fmt0 = (v) => (v == null ? "—" : Math.round(v).toLocaleString("pt-BR"));
+
+class Component extends DCLogic {
+  state = {
+    api: null, tela: "home", mes: "2026-08",
+    saldo: null, gastos: [], resumo: null, compromissos: null, projecao: [],
+    entrada: "", processando: false, erro: "", phIdx: 0,
+    conf: null, confValor: "", confCategoria: "outros", segundos: 5,
+    sug: null, sugValor: "", sugCampo2: "",
+    swipeId: null, swipeDx: 0, arrastando: false,
+    busca: "", filtro: "todas", ouvindo: false,
+    passoOnb: 1, onbCampo: "", onboardando: false,
+    rendaCampo: "", saude: "não testado",
+  };
+
+  async componentDidMount() {
+    // api.js é carregado por um módulo no helmet e exposto em window.API
+    const api = await new Promise((resolve) => {
+      if (window.API) return resolve(window.API);
+      const pronto = () => resolve(window.API);
+      window.addEventListener("api-pronta", pronto, { once: true });
+      setTimeout(() => resolve(window.API || null), 6000);
+    });
+    if (!api) { this.setState({ erro: "Não consegui carregar a camada de dados.", onboardando: true }); return; }
+    this.setState({ api });
+    this.recarregar(api, this.state.mes);
+    this._ph = setInterval(() => this.setState((s) => ({ phIdx: (s.phIdx + 1) % PLACEHOLDERS.length })), 3200);
+  }
+  componentWillUnmount() { clearInterval(this._ph); clearInterval(this._tick); }
+
+  async recarregar(apiArg, mesArg) {
+    const api = apiArg || this.state.api;
+    const mes = mesArg || this.state.mes;
+    if (!api) return;
+    try {
+    const [saldo, gastos, resumo, compromissos, projecao] = await Promise.all([
+      api.getSaldo(mes), api.getGastos(mes), api.getResumo(mes), api.getCompromissos(mes), api.getProjecao(6),
+    ]);
+    this.setState({ saldo, gastos, resumo, compromissos, projecao, rendaCampo: String(saldo.renda_total || ""), onboardando: !saldo.renda_definida });
+    } catch (e) {
+      this.setState({ erro: "Falha ao buscar os dados do mês." });
+    }
+  }
+
+  vibrar(p) { if (navigator.vibrate) navigator.vibrate(p); }
+
+  // ---------- entrada ----------
+  enviar = async () => {
+    const msg = this.state.entrada.trim();
+    if (!msg || this.state.processando) return;
+    this.setState({ processando: true, erro: "", conf: null, sug: null });
+    try {
+      const r = await this.state.api.postGasto(msg);
+      if (r.requer_confirmacao) {
+        const s = r.sugestao;
+        this.setState({ processando: false, entrada: "", sug: { ...s, tipo: r.tipo },
+          sugValor: String(r.tipo === "parcelamento" ? s.valor_parcela.toFixed(2) : s.valor.toFixed(2)),
+          sugCampo2: String(r.tipo === "parcelamento" ? s.total_parcelas : s.dia_vencimento) });
+        this.vibrar([12, 40, 12]);
+      } else {
+        this.vibrar(18);
+        this.setState({ processando: false, entrada: "", conf: r.gasto, confValor: r.gasto.valor.toFixed(2), confCategoria: r.gasto.categoria, segundos: 5 });
+        this.recarregar();
+        clearInterval(this._tick);
+        this._tick = setInterval(() => this.setState((s) => {
+          if (s.segundos <= 1) { clearInterval(this._tick); return { segundos: 0, conf: null }; }
+          return { segundos: s.segundos - 1 };
+        }), 1000);
+      }
+    } catch (e) {
+      this.setState({ processando: false, erro: e.message || "Não consegui interpretar isso." });
+    }
+  };
+  aoTeclar = (e) => { if (e.key === "Enter") this.enviar(); };
+
+  ditar = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { this.setState({ erro: "Ditado indisponível neste navegador." }); return; }
+    const r = new SR(); r.lang = "pt-BR"; r.interimResults = true;
+    r.onresult = (ev) => this.setState({ entrada: Array.from(ev.results).map((x) => x[0].transcript).join("") });
+    r.onend = () => this.setState({ ouvindo: false });
+    r.onerror = () => this.setState({ ouvindo: false, erro: "Não consegui ouvir. Tente digitar." });
+    r.start(); this.setState({ ouvindo: true }); this.vibrar(8);
+  };
+
+  desfazer = async () => {
+    clearInterval(this._tick);
+    const g = this.state.conf;
+    this.setState({ conf: null });
+    if (g) { await this.state.api.removerGasto(g.id); this.recarregar(); }
+  };
+  confirmarEdicao = async () => {
+    clearInterval(this._tick);
+    const g = this.state.conf;
+    const valor = parseFloat(String(this.state.confValor).replace(",", "."));
+    this.setState({ conf: null });
+    if (g) { await this.state.api.editarGasto(g.id, { valor: isNaN(valor) ? g.valor : valor, categoria: this.state.confCategoria }); this.recarregar(); }
+  };
+  confirmarSugestao = async () => {
+    const s = this.state.sug;
+    const valor = parseFloat(String(this.state.sugValor).replace(",", ".")) || 0;
+    const n = parseInt(this.state.sugCampo2, 10) || 1;
+    const dados = s.tipo === "parcelamento"
+      ? { descricao: s.descricao, valor_parcela: valor, total_parcelas: n, parcela_inicial: s.parcela_inicial, mes_inicio: s.mes_inicio, categoria: s.categoria }
+      : { descricao: s.descricao, valor, dia_vencimento: n, categoria: s.categoria };
+    this.setState({ sug: null });
+    await this.state.api.confirmarCompromisso(s.tipo, dados);
+    this.vibrar([10, 30, 10]);
+    this.recarregar();
+  };
+
+  // ---------- swipe ----------
+  linha(g) {
+    const ativo = this.state.swipeId === g.id;
+    const dx = ativo ? this.state.swipeDx : 0;
+    return {
+      id: g.id, descricao: g.descricao,
+      categoria: this.state.api ? this.state.api.ROTULO_CAT[g.categoria] : g.categoria,
+      quando: this.quando(g.data_gasto), valor: fmt(g.valor),
+      transform: `translateX(${dx}px)`,
+      transicao: this.state.arrastando && ativo ? "none" : "transform .26s cubic-bezier(.2,.9,.25,1)",
+      onDown: (e) => { this._x0 = e.clientX; this.setState({ swipeId: g.id, arrastando: true, swipeDx: this.state.swipeId === g.id ? this.state.swipeDx : 0 }); },
+      onMove: (e) => {
+        if (!this.state.arrastando || this.state.swipeId !== g.id) return;
+        const d = Math.max(-152, Math.min(0, e.clientX - this._x0));
+        this.setState({ swipeDx: d });
+      },
+      onUp: () => this.setState((s) => ({ arrastando: false, swipeDx: s.swipeDx < -60 ? -152 : 0 })),
+      onEditar: () => { this.setState({ swipeDx: 0, conf: g, confValor: g.valor.toFixed(2), confCategoria: g.categoria, segundos: 0 }); },
+      onExcluir: async () => { this.setState({ swipeId: null, swipeDx: 0 }); this.vibrar(14); await this.state.api.removerGasto(g.id); this.recarregar(); },
+    };
+  }
+  quando(iso) {
+    const [d, h] = iso.split("T");
+    const dia = Number(d.split("-")[2]);
+    const hj = this.state.api ? this.state.api.hoje.dia : 14;
+    if (dia === hj) return `hoje ${h}`;
+    if (dia === hj - 1) return `ontem ${h}`;
+    return `${String(dia).padStart(2, "0")}/08 ${h}`;
+  }
+
+  irPara = (t) => () => this.setState({ tela: t, swipeId: null, swipeDx: 0 });
+  mudarMes = (n) => () => {
+    const api = this.state.api;
+    if (!api) return;
+    const mes = api.somaMes(this.state.mes, n);
+    this.setState({ mes });
+    this.recarregar(api, mes);
+  };
+
+  renderVals() {
+    const s = this.state, api = s.api, saldo = s.saldo;
+    const disp = saldo ? saldo.disponivel : null;
+    const [hi, hc] = (disp == null ? "—,—" : fmt(disp)).split(",");
+    const rot = api ? api.nomeMes(s.mes) : s.mes;
+
+    // régua do mês: 24 blocos divididos entre comprometido (hachurado) e gasto livre (sólido)
+    const blocos = [];
+    if (saldo && saldo.renda_total) {
+      const nc = Math.round((saldo.comprometido_total / saldo.renda_total) * 24);
+      const nl = Math.round((saldo.gasto_livre / saldo.renda_total) * 24);
+      for (let i = 0; i < 24; i++) {
+        blocos.push({ fundo: i < nc ? "repeating-linear-gradient(45deg,#16130D 0 2px,transparent 2px 4px)" : i < nc + nl ? "#16130D" : "transparent" });
+      }
+    }
+
+    // histórico filtrado e agrupado por dia
+    const busca = s.busca.trim().toLowerCase();
+    const filtrados = s.gastos.filter((g) =>
+      (s.filtro === "todas" || g.categoria === s.filtro) &&
+      (!busca || g.descricao.toLowerCase().includes(busca)));
+    const mapaDias = {};
+    filtrados.forEach((g) => { const d = g.data_gasto.split("T")[0]; (mapaDias[d] = mapaDias[d] || []).push(g); });
+    const dias = Object.keys(mapaDias).sort().reverse().map((d) => ({
+      rotulo: `${d.split("-")[2]} de ${api ? api.MESES[Number(d.split("-")[1]) - 1] : ""}`,
+      total: fmt(mapaDias[d].reduce((a, b) => a + b.valor, 0)),
+      itens: mapaDias[d].map((g) => this.linha(g)),
+    }));
+
+    const chips = ["todas", ...(api ? api.LISTA_CAT : [])].map((c) => ({
+      rotulo: c === "todas" ? "todas" : api.ROTULO_CAT[c],
+      fundo: s.filtro === c ? "#16130D" : "transparent",
+      cor: s.filtro === c ? "#F6F1E4" : "#16130D",
+      onClick: () => this.setState({ filtro: c }),
+    }));
+
+    const maxCat = s.resumo && s.resumo.por_categoria.length ? s.resumo.por_categoria[0].total : 1;
+    const categorias = (s.resumo ? s.resumo.por_categoria : []).map((c) => ({
+      rotulo: api.ROTULO_CAT[c.categoria], total: fmt(c.total),
+      larguraComprometido: `${(c.comprometido / maxCat) * 100}%`,
+      larguraLivre: `${(c.livre / maxCat) * 100}%`,
+      onFiltrar: () => this.setState({ tela: "historico", filtro: c.categoria }),
+    }));
+
+    const comp = s.compromissos || { fixas: [], parcelas: [] };
+    const parcelamentos = comp.parcelas.map((p) => ({
+      descricao: p.descricao, valor: fmt(p.valor_parcela),
+      ticks: Array.from({ length: p.total_parcelas }, (_, i) => ({ fundo: i < p.parcela_atual ? "#16130D" : "transparent" })),
+      progresso: `${p.parcela_atual} de ${p.total_parcelas} · termina em ${api.nomeMes(p.mes_fim)}`,
+    }));
+
+    const maxProj = Math.max(1, ...s.projecao.map((p) => p.renda || p.comprometido));
+    const projecao = s.projecao.map((p) => ({
+      rotulo: api ? api.nomeMes(p.mes) : p.mes,
+      comprometido: fmt0(p.comprometido), sobra: fmt0(p.sobra),
+      largura: `${(p.comprometido / maxProj) * 100}%`,
+      peso: p.termina.length ? "600" : "400",
+      temAlivio: p.termina.length > 0,
+      alivio: p.termina.length ? `${p.termina.join(", ")} acaba` : "",
+    }));
+
+    const navegacao = [
+      ["home", "Hoje"], ["resumo", "Resumo"], ["historico", "Histórico"], ["compromissos", "Travado"], ["config", "Ajustes"],
+    ].map(([t, r]) => ({
+      rotulo: r, onClick: this.irPara(t),
+      cor: s.tela === t || (t === "compromissos" && s.tela === "projecao") ? "#16130D" : "rgba(22,19,13,.42)",
+      marca: s.tela === t || (t === "compromissos" && s.tela === "projecao") ? "#D2360A" : "transparent",
+    }));
+
+    const titulos = { home: "folha 01", resumo: "resumo", historico: "histórico", compromissos: "compromissos", projecao: "projeção", config: "ajustes" };
+
+    const sug = s.sug;
+    const onb = { 1: { t: "Quanto entra este mês?", x: "Sem renda, o saldo não significa nada. É o único passo obrigatório.", p: "R$", ph: "1700", b: "Continuar", pular: false },
+      2: { t: "Contas fixas", x: "Aluguel, internet, luz. Recorrem todo mês até você desativar.", p: "R$", ph: "99", b: "Adicionar", pular: true },
+      3: { t: "Parcelas em aberto", x: "Valor da parcela. Depois você diz qual parcela está pagando agora.", p: "R$", ph: "180", b: "Concluir", pular: true } }[s.passoOnb];
+
+    return {
+      cabecalhoEsq: `${rot.replace("/", " / ")} — ${titulos[s.tela]}`,
+      cabecalhoDir: saldo && saldo.renda_definida ? `${Math.round(saldo.percentual_consumido)}% consumido` : "sem renda",
+      telaHome: s.tela === "home", telaResumo: s.tela === "resumo", telaHistorico: s.tela === "historico",
+      telaCompromissos: s.tela === "compromissos", telaProjecao: s.tela === "projecao", telaConfig: s.tela === "config",
+      heroInt: hi, heroCent: hc, chaveSaldo: String(disp),
+      fmtRenda: saldo ? fmt0(saldo.renda_total) : "—",
+      fmtComprometido: saldo ? fmt0(saldo.comprometido_total) : "—",
+      fmtGastoLivre: saldo ? fmt0(saldo.gasto_livre) : "—",
+      fmtRitmo: saldo ? fmt(saldo.ritmo_diario) : "—",
+      diasRestantes: saldo ? saldo.dias_restantes : "—",
+      fimDoMes: `31 de ${api ? api.MESES[Number(s.mes.split("-")[1]) - 1] : ""}`,
+      blocos, mesRotulo: rot,
+      recentes: s.gastos.slice(0, 5).map((g) => this.linha(g)),
+      semGastos: s.gastos.length === 0,
+      resumoTotal: s.resumo ? fmt(s.resumo.total) : "—",
+      resumoMedia: s.resumo ? fmt(s.resumo.media_diaria) : "—",
+      categorias, chips, dias, historicoVazio: dias.length === 0,
+      contasFixas: comp.fixas.map((c) => ({ descricao: c.descricao, dia: c.dia_vencimento, valor: fmt(c.valor) })),
+      parcelamentos,
+      resumoCompromissos: `${comp.fixas.length} contas fixas · ${comp.parcelas.length} parcelamento(s)`,
+      projecao,
+      mesAnterior: this.mudarMes(-1), mesSeguinte: this.mudarMes(1),
+      irProjecao: this.irPara("projecao"), irCompromissos: this.irPara("compromissos"),
+      busca: s.busca, setBusca: (e) => this.setState({ busca: e.target.value }),
+      entrada: s.entrada, setEntrada: (e) => this.setState({ entrada: e.target.value }),
+      aoTeclar: this.aoTeclar, enviar: this.enviar, ditar: this.ditar,
+      placeholderAtual: PLACEHOLDERS[s.phIdx], processando: s.processando,
+      fundoMic: s.ouvindo ? "#D2360A" : "transparent", corMic: s.ouvindo ? "#F6F1E4" : "#16130D",
+      erro: s.erro, mostrarErro: !!s.erro, limparErro: () => this.setState({ erro: "" }),
+      mostrarConfirmacao: !!s.conf,
+      confValor: s.confValor, setConfValor: (e) => this.setState({ confValor: e.target.value }),
+      confCategoria: s.confCategoria, setConfCategoria: (e) => this.setState({ confCategoria: e.target.value }),
+      confDescricao: s.conf ? s.conf.descricao : "",
+      contagemDesfazer: s.segundos > 0 ? `desfazer ${s.segundos}s` : "editando",
+      opcoesCategoria: (api ? api.LISTA_CAT : []).map((c) => ({ valor: c, rotulo: api.ROTULO_CAT[c] })),
+      desfazer: this.desfazer, confirmarEdicao: this.confirmarEdicao,
+      mostrarSugestao: !!sug,
+      sugestaoTexto: sug ? (sug.tipo === "parcelamento" ? `“${sug.descricao}” parece um parcelamento. Vai pesar no comprometido de vários meses.` : `“${sug.descricao}” parece uma conta fixa. Vai se repetir todo mês até você desativar.`) : "",
+      sugValor: s.sugValor, setSugValor: (e) => this.setState({ sugValor: e.target.value }),
+      sugCampo2: s.sugCampo2, setSugCampo2: (e) => this.setState({ sugCampo2: e.target.value }),
+      sugLegenda: sug ? (sug.tipo === "parcelamento" ? "valor da parcela · total de parcelas" : "valor · dia de vencimento") : "",
+      confirmarSugestao: this.confirmarSugestao, descartarSugestao: () => this.setState({ sug: null }),
+      navegacao,
+      mostrarOnboarding: s.onboardando, passo: s.passoOnb,
+      onbTitulo: onb.t, onbTexto: onb.x, onbPrefixo: onb.p, onbPlaceholder: onb.ph, onbBotao: onb.b, podePular: onb.pular,
+      onbCampo: s.onbCampo, setOnbCampo: (e) => this.setState({ onbCampo: e.target.value }),
+      avancarPasso: async () => {
+        const v = parseFloat(String(s.onbCampo).replace(",", "."));
+        if (s.passoOnb === 1) {
+          if (!v) return;
+          await api.definirRenda(v);
+          this.setState({ passoOnb: 2, onbCampo: "" });
+          this.recarregar(api, s.mes);
+        } else if (s.passoOnb === 2) {
+          if (v) await api.confirmarCompromisso("conta_fixa", { descricao: "Conta fixa", valor: v, dia_vencimento: 10, categoria: "contas" });
+          this.setState({ passoOnb: 3, onbCampo: "" });
+          this.recarregar(api, s.mes);
+        } else {
+          if (v) await api.confirmarCompromisso("parcelamento", { descricao: "Parcelamento", valor_parcela: v, total_parcelas: 12, parcela_inicial: 1, mes_inicio: s.mes, categoria: "compras" });
+          this.setState({ onboardando: false, onbCampo: "" });
+          this.recarregar(api, s.mes);
+        }
+      },
+      pularPasso: () => s.passoOnb === 2 ? this.setState({ passoOnb: 3, onbCampo: "" }) : this.setState({ onboardando: false, onbCampo: "" }),
+      rendaCampo: s.rendaCampo, setRendaCampo: (e) => this.setState({ rendaCampo: e.target.value }),
+      salvarRenda: async () => { const v = parseFloat(String(s.rendaCampo).replace(",", ".")); if (v) { await api.definirRenda(v); this.recarregar(); this.vibrar(12); } },
+      statusSaude: s.saude,
+      testarSaude: async () => { this.setState({ saude: "testando…" }); const h = await api.health(); this.setState({ saude: h.ok ? `online · ${h.modo} · ${h.latencia_ms}ms` : "offline" }); },
+      exportarCsv: () => {
+        const blob = new Blob([api.csv()], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = `gastos-${s.mes}.csv`; a.click();
+      },
+      refazerOnboarding: async () => { await api.limparRenda(); this.setState({ passoOnb: 1, onbCampo: "", onboardando: true }); this.recarregar(api, s.mes); },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

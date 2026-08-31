@@ -1,0 +1,161 @@
+# Adendo — Contas fixas, parcelas e renda mensal
+
+> Cole este bloco no final de **cada um** dos dois prompts (backend e frontend).
+> A parte de modelo de dados e rotas é para o backend; a parte de telas é para
+> o frontend.
+
+---
+
+## Conceito central: comprometido ≠ gasto
+
+O orçamento do mês não é um número único. Ele se decompõe em:
+
+- **Renda mensal**: o que entra (ex: R$ 1.700)
+- **Comprometido**: obrigações já travadas antes do mês começar — contas fixas
+  (aluguel, internet, luz) e parcelas em aberto no cartão (ex: R$ 400)
+- **Gasto livre**: o que já foi gasto no dia a dia (almoço, uber, mercado)
+- **Disponível de fato**: `renda − comprometido − gasto livre`
+
+O número que o app mostra como "disponível" tem que ser sempre o último. Se eu
+tenho 1.700 de renda e 400 em parcelas, no dia 1º do mês eu tenho **1.300
+disponíveis**, não 1.700. Mostrar 1.700 é mentir para o usuário.
+
+O mesmo vale para o ritmo diário: `disponível de fato ÷ dias restantes`.
+
+## Backend
+
+### Novas tabelas
+
+**`rendas`**
+- `id` (PK)
+- `mes_referencia` (TEXT, `YYYY-MM`)
+- `descricao` (TEXT, ex: "salário", "freela")
+- `valor` (REAL)
+
+Permitir mais de uma entrada por mês (salário + renda extra).
+
+**`contas_fixas`**
+- `id` (PK)
+- `descricao` (TEXT, ex: "internet")
+- `valor` (REAL)
+- `dia_vencimento` (INTEGER, 1–31)
+- `categoria` (TEXT, mesmo enum dos gastos)
+- `ativa` (INTEGER 0/1)
+
+Recorre todo mês até ser desativada. Não gera linha em `gastos` — é um
+compromisso, não um gasto pontual.
+
+**`parcelamentos`**
+- `id` (PK)
+- `descricao` (TEXT, ex: "celular")
+- `valor_parcela` (REAL)
+- `total_parcelas` (INTEGER)
+- `parcela_inicial` (INTEGER, para cadastrar algo já em andamento — ex: já
+  paguei 8 de 12, começo em 9)
+- `mes_inicio` (TEXT, `YYYY-MM` — o mês da `parcela_inicial`)
+- `categoria` (TEXT)
+
+**Regra crítica**: o backend calcula quais parcelas incidem em cada mês a
+partir de `mes_inicio`, `parcela_inicial` e `total_parcelas`. Quando as
+parcelas acabam, o valor **para de contar automaticamente** nos meses
+seguintes, sem intervenção manual. Nunca materialize as parcelas futuras como
+linhas fixas no banco — calcule sob demanda, para que corrigir o cadastro
+recalcule o histórico inteiro.
+
+### Ajustes nas rotas existentes
+
+`GET /api/saldo` passa a retornar:
+
+```json
+{
+  "renda_total": 1700,
+  "comprometido_total": 400,
+  "comprometido_contas_fixas": 0,
+  "comprometido_parcelas": 400,
+  "gasto_livre": 120,
+  "disponivel": 1180,
+  "percentual_consumido": 30.6,
+  "dias_restantes": 12,
+  "ritmo_diario": 98.33,
+  "renda_definida": true
+}
+```
+
+`GET /api/resumo` passa a separar, no agregado por categoria, o que veio de
+compromissos e o que veio de gasto livre — não some os dois numa barra só.
+
+### Novas rotas
+
+| Método | Rota | O que faz |
+|---|---|---|
+| GET/POST/PATCH/DELETE | `/api/rendas` | CRUD de rendas do mês |
+| GET/POST/PATCH/DELETE | `/api/contas-fixas` | CRUD de contas fixas |
+| GET/POST/PATCH/DELETE | `/api/parcelamentos` | CRUD de parcelamentos |
+| GET | `/api/compromissos?mes=YYYY-MM` | Contas fixas + parcelas que incidem naquele mês, já resolvidas, com `parcela_atual`/`total_parcelas` para cada parcelamento |
+| GET | `/api/projecao?meses=6` | Comprometido projetado dos próximos N meses, mostrando quando cada parcelamento termina |
+
+### Extração via LLM
+
+Adicionar ao schema de saída um campo `tipo`, enum:
+- `gasto_avulso` — comportamento atual
+- `conta_fixa` — quando a mensagem indicar recorrência ("todo mês pago 99 de
+  internet")
+- `parcelamento` — quando indicar parcelas ("comprei um celular em 12x de 180")
+
+Para `conta_fixa` e `parcelamento`, **não grave direto**: retorne uma sugestão
+de cadastro com HTTP 200 e uma flag `requer_confirmacao: true`, com os campos
+que o modelo conseguiu extrair. O usuário confirma na interface antes de virar
+um compromisso recorrente. Um erro do LLM aqui contamina vários meses, não só
+um registro — por isso a confirmação é obrigatória.
+
+Para `parcelamento`, o modelo deve extrair `total_parcelas` e `valor_parcela`.
+Se a mensagem der só o valor total ("comprei de 2160 em 12x"), o backend
+divide.
+
+## Frontend
+
+### Home
+
+O saldo em destaque é o **disponível de fato**, nunca a renda bruta.
+
+Abaixo dele, uma decomposição sempre visível e compacta, algo na linha de:
+
+```
+Renda 1.700 − Comprometido 400 − Gasto 120 = 1.180
+```
+
+Não esconda isso atrás de um toque. A pessoa precisa entender de onde saiu o
+número, ou ela não confia nele.
+
+O indicador de progresso deve distinguir visualmente a fatia comprometida da
+fatia de gasto livre — são coisas de natureza diferente e a comprometida não é
+"culpa" do mês corrente.
+
+### Nova tela: Compromissos
+
+- Duas seções: **Contas fixas** e **Parcelamentos**
+- Cada parcelamento mostra o progresso (ex: "9 de 12 · termina em maio/2027") —
+  ver a parcela acabando é o dado mais motivador do app inteiro
+- Total comprometido do mês no topo
+- CRUD completo, com um formulário que permita cadastrar parcelamento já em
+  andamento (informando qual parcela é a atual)
+
+### Nova tela: Projeção
+
+- Gráfico dos próximos 6 meses mostrando quanto estará comprometido em cada um
+- Marcar visualmente os meses em que um parcelamento termina e o comprometido
+  cai — esse é o momento de alívio que o usuário quer antecipar
+- Sobreposição da renda para deixar claro quanto sobraria em cada mês
+
+### Fluxo de confirmação
+
+Quando o backend responder com `requer_confirmacao: true`, mostrar um card de
+confirmação diferente do card de gasto comum — mais explícito, deixando claro
+que aquilo vai se repetir. Campos editáveis antes de confirmar. Botão de
+descartar bem visível.
+
+### Onboarding
+
+Antes de qualquer coisa, o app pede: renda do mês, contas fixas e
+parcelamentos em aberto. Sem esses três, o saldo não significa nada. Deixe o
+usuário pular contas fixas e parcelamentos, mas nunca a renda.

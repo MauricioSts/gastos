@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#E8E2D4; }
+  a { color:#D2360A; text-decoration:none; }
+  a:hover { color:#8F2406; }
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;background:#E8E2D4;color:#16130D;font-family:'IBM Plex Sans',sans-serif;display:flex;flex-direction:column">
+
+  <div style="position:absolute;inset:0;pointer-events:none;z-index:5;opacity:.5;mix-blend-mode:multiply;background-image:url(data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='160'%20height='160'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.7'%20numOctaves='4'/%3E%3C/filter%3E%3Crect%20width='160'%20height='160'%20filter='url(%23n)'%20opacity='0.32'/%3E%3C/svg%3E)"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500">
+    <span>9:41</span>
+    <span style="opacity:.55">▮▮▮ 87%</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px;border-bottom:2px solid #16130D;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase">
+    <span>08 / 2026 — folha 01</span>
+    <span style="opacity:.5">ajustes</span>
+  </div>
+
+  <div style="padding:20px 20px 0">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.6">Saldo disponível</div>
+    <div style="display:flex;align-items:flex-end;gap:6px;margin-top:-2px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;padding-bottom:16px">R$</span>
+      <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:108px;line-height:.82;letter-spacing:-.01em">1.284<span style="color:#D2360A">,60</span></span>
+    </div>
+  </div>
+
+  <div style="padding:18px 20px 0">
+    <div style="display:flex;height:16px;border:2px solid #16130D">
+      <sc-for list="{{ blocos }}" as="b" hint-placeholder-count="20">
+        <div style="flex:1;border-right:1px solid rgba(22,19,13,.25);background:{{ b.cor }}"></div>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase">
+      <span>62% consumido</span>
+      <span style="opacity:.55">17 dias restantes</span>
+    </div>
+  </div>
+
+  <div style="margin:18px 20px 0;border:2px solid #16130D;display:flex;align-items:stretch">
+    <div style="flex:1;padding:12px 14px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.65">Ritmo diário</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.45;margin-top:4px">até 31.08</div>
+    </div>
+    <div style="background:#D2360A;color:#F6F1E4;padding:10px 16px;display:flex;align-items:baseline;gap:4px">
+      <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:800;font-size:46px;line-height:1">75,56</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em">/DIA</span>
+    </div>
+  </div>
+
+  <div style="flex:1;overflow:hidden;padding:22px 20px 0">
+    <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;border-bottom:1px solid #16130D;padding-bottom:6px">
+      <span>Lançamentos</span><span>Valor</span>
+    </div>
+    <div style="display:flex;flex-direction:column">
+      <sc-for list="{{ gastos }}" as="g" hint-placeholder-count="4">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(22,19,13,.16)">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:15px;font-weight:500">{{ g.descricao }}</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.5">{{ g.categoria }} · {{ g.quando }}</span>
+          </div>
+          <span style="font-family:'Big Shoulders Display',sans-serif;font-weight:700;font-size:30px;line-height:1">{{ g.valor }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="padding:12px 16px 32px;background:linear-gradient(180deg,rgba(232,226,212,0),#E8E2D4 30%);position:relative;z-index:6">
+    <div style="display:flex;align-items:center;gap:10px;border:2px solid #16130D;padding:11px 11px 11px 16px;background:#F4EFE2">
+      <span style="flex:1;font-size:16px;opacity:.45;font-family:'IBM Plex Mono',monospace">gastei 32 no uber_</span>
+      <div style="width:38px;height:38px;background:#16130D;color:#F6F1E4;display:flex;align-items:center;justify-content:center;font-size:15px">◉</div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+  renderVals() {
+    // barra de blocos estilo régua de impressão: 20 divisões, 62% preenchido
+    const total = 20, cheios = Math.round(total * 0.62);
+    const blocos = Array.from({ length: total }, (_, i) => ({
+      cor: i < cheios ? "#16130D" : "transparent",
+    }));
+    const gastos = [
+      { descricao: "Almoço no Tonico", categoria: "Alimentação", quando: "hoje 13:12", valor: "38,00" },
+      { descricao: "Uber p/ escritório", categoria: "Transporte", quando: "hoje 08:41", valor: "21,90" },
+      { descricao: "Spotify", categoria: "Assinaturas", quando: "ontem", valor: "34,90" },
+      { descricao: "Feira da Vila", categoria: "Compras", quando: "ontem", valor: "112,40" },
+    ];
+    return { blocos, gastos };
+  }
+}
+
+</script>
+</body>
+</html>

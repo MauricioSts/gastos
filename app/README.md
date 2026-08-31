@@ -11,6 +11,11 @@ disponível de fato = renda − comprometido − gasto livre
 ritmo diário       = disponível de fato ÷ dias restantes
 ```
 
+Os dois sentidos do dinheiro passam pelo mesmo campo de texto. `gastei 32 no
+uber` reduz o disponível; `recebi um pix de 10` aumenta, virando uma linha de
+renda do mês. Contas fixas e parcelamentos, que pesam em vários meses, nunca
+são gravados direto: vão para um card de confirmação com os campos editáveis.
+
 O número em destaque na Home é **sempre** o disponível de fato, nunca a renda
 bruta, e a decomposição `Renda 1.700 − Comprometido 365 − Gasto 412` fica
 permanentemente visível abaixo dele. Quem tem 1.700 de renda e 365 travados em
@@ -69,7 +74,9 @@ src/
 ├── App.jsx                   estado, navegação e orquestração das telas
 ├── componentes/
 │   ├── BarraEntrada.jsx      input + microfone + navegação (fixos na base)
-│   ├── CardConfirmacao.jsx   card de gasto registrado, com desfazer de 5s
+│   ├── CardConfirmacao.jsx   card de gasto ou entrada, com desfazer de 5s
+│   ├── FormularioCompromisso.jsx  conta fixa / parcelamento, com variante
+│   │                              invertida para o onboarding
 │   ├── CardSugestao.jsx      card de compromisso recorrente (carimbo)
 │   ├── FaixaErro.jsx         aviso discreto acima da barra
 │   ├── LinhaLancamento.jsx   linha com swipe revelando editar/excluir
@@ -121,6 +128,12 @@ Regras que valem em todo lugar:
 - Os centavos do saldo herói saem em `carimbo`; isso não se repete em lugar
   nenhum, é a assinatura da tela.
 - Ruído de papel (`feTurbulence`) sobre tudo, abaixo dos modais.
+
+O onboarding cadastra compromissos de verdade — descrição, valor, vencimento,
+categoria e, no parcelamento, **em que parcela você já está**. Esse último campo
+é a razão do formulário existir: sem ele, uma compra na 9ª de 12 parcelas entra
+como se estivesse na 1ª e o comprometido dos próximos meses nasce errado. A tela
+Compromissos tem o mesmo formulário para criar, editar e excluir.
 
 Só dois momentos ganham animação: a entrada dos cards (`carimbo`) e o saldo
 herói re-animando a cada mudança de valor (`subirValor`, forçado por

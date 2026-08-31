@@ -249,6 +249,8 @@ export async function postGasto(mensagem) {
   if (!USAR_MOCK) {
     const r = await req('/api/gastos', { method: 'POST', body: JSON.stringify({ mensagem }) });
     if (r.requer_confirmacao) return r;
+    // Entrada não tem categoria nem data de gasto: é uma linha de renda.
+    if (r.tipo === 'entrada') return { ...r.saldo, entrada: r.entrada, tipo: 'entrada' };
     return { ...r.saldo, gasto: normalizaGasto(r.gasto), tipo: 'gasto_avulso' };
   }
   await espera(1500);
@@ -315,6 +317,39 @@ export async function confirmarCompromisso(tipo, dados) {
   return getSaldo();
 }
 
+// Edição e remoção de compromissos recorrentes. O PATCH de parcelamento
+// aceita `parcela_inicial` + `mes_inicio` juntos: é assim que "estou na
+// parcela 9 agora" vira histórico correto, sem materializar parcela nenhuma.
+export async function editarContaFixa(id, campos) {
+  if (!USAR_MOCK) return req(`/api/contas-fixas/${id}`, { method: 'PATCH', body: JSON.stringify(campos) });
+  await espera(150);
+  const c = db.contas_fixas.find((x) => x.id === id);
+  if (c) Object.assign(c, campos, { ativa: campos.ativa === false ? 0 : (campos.ativa === true ? 1 : c.ativa) });
+  return getSaldo();
+}
+
+export async function removerContaFixa(id) {
+  if (!USAR_MOCK) return req(`/api/contas-fixas/${id}`, { method: 'DELETE' });
+  await espera(150);
+  db.contas_fixas = db.contas_fixas.filter((c) => c.id !== id);
+  return getSaldo();
+}
+
+export async function editarParcelamento(id, campos) {
+  if (!USAR_MOCK) return req(`/api/parcelamentos/${id}`, { method: 'PATCH', body: JSON.stringify(campos) });
+  await espera(150);
+  const p = db.parcelamentos.find((x) => x.id === id);
+  if (p) Object.assign(p, campos);
+  return getSaldo();
+}
+
+export async function removerParcelamento(id) {
+  if (!USAR_MOCK) return req(`/api/parcelamentos/${id}`, { method: 'DELETE' });
+  await espera(150);
+  db.parcelamentos = db.parcelamentos.filter((p) => p.id !== id);
+  return getSaldo();
+}
+
 export async function removerGasto(id) {
   if (!USAR_MOCK) return req(`/api/gastos/${id}`, { method: 'DELETE' });
   await espera(120);
@@ -330,19 +365,57 @@ export async function editarGasto(id, campos) {
   return getSaldo();
 }
 
-// Renda do mês. O backend aceita várias entradas por mês; a tela de ajustes
-// trabalha com um valor único, então substituímos as anteriores.
+// Entradas de renda do mês, em ordem de valor.
+export async function getRendas(mes = hoje.mes) {
+  if (!USAR_MOCK) {
+    const r = await req(`/api/rendas?mes=${mes}`);
+    return { total: r.renda_total, definida: r.renda_definida, entradas: r.rendas || [] };
+  }
+  await espera(100);
+  const entradas = db.rendas.filter((r) => r.mes_referencia === mes);
+  return {
+    total: entradas.reduce((s, r) => s + r.valor, 0),
+    definida: entradas.length > 0,
+    entradas,
+  };
+}
+
+// A renda fixa do mês — o salário. É uma entre várias linhas possíveis, então
+// esta função edita SÓ a linha "Renda" e nunca toca nas outras: um pix
+// registrado pelo chat também é renda, e salvar o salário não pode apagá-lo.
 export async function definirRenda(valor, mes = hoje.mes) {
   if (!USAR_MOCK) {
     const atuais = await req(`/api/rendas?mes=${mes}`);
-    await Promise.all((atuais.rendas || []).map((r) => req(`/api/rendas/${r.id}`, { method: 'DELETE' })));
+    const principal = (atuais.rendas || []).find((r) => r.descricao === 'Renda');
+    if (principal) {
+      return req(`/api/rendas/${principal.id}`, { method: 'PATCH', body: JSON.stringify({ valor }) });
+    }
     return req('/api/rendas', {
       method: 'POST',
       body: JSON.stringify({ mes_referencia: mes, descricao: 'Renda', valor }),
     });
   }
   await espera(200);
-  db.rendas = [{ id: 1, mes_referencia: mes, descricao: 'Renda', valor }];
+  const principal = db.rendas.find((r) => r.mes_referencia === mes && r.descricao === 'Renda');
+  if (principal) principal.valor = valor;
+  else db.rendas.push({ id: Date.now(), mes_referencia: mes, descricao: 'Renda', valor });
+  return getSaldo(mes);
+}
+
+// Corrige o valor de uma entrada (o card de confirmação deixa editar).
+export async function editarRenda(id, campos) {
+  if (!USAR_MOCK) return req(`/api/rendas/${id}`, { method: 'PATCH', body: JSON.stringify(campos) });
+  await espera(120);
+  const r = db.rendas.find((x) => x.id === id);
+  if (r) Object.assign(r, campos);
+  return getSaldo();
+}
+
+// Remove uma entrada específica (um pix lançado errado, por exemplo).
+export async function removerRenda(id, mes = hoje.mes) {
+  if (!USAR_MOCK) return req(`/api/rendas/${id}`, { method: 'DELETE' });
+  await espera(120);
+  db.rendas = db.rendas.filter((r) => r.id !== id);
   return getSaldo(mes);
 }
 

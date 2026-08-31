@@ -37,6 +37,7 @@ export default function App() {
   const [resumo, setResumo] = useState(null);
   const [compromissos, setCompromissos] = useState(null);
   const [projecao, setProjecao] = useState([]);
+  const [rendas, setRendas] = useState(null);
 
   const [carregando, setCarregando] = useState(true);
   const [entrada, setEntrada] = useState('');
@@ -44,6 +45,7 @@ export default function App() {
   const [erro, setErro] = useState('');
 
   const [conf, setConf] = useState(null);        // gasto recém-registrado ou em edição
+  const [entradaConf, setEntradaConf] = useState(null); // entrada recém-registrada
   const [confSegundos, setConfSegundos] = useState(5);
   const [sug, setSug] = useState(null);          // sugestão de compromisso recorrente
 
@@ -57,18 +59,20 @@ export default function App() {
 
   const recarregar = useCallback(async (mesAlvo = mes) => {
     try {
-      const [s, g, r, c, p] = await Promise.all([
+      const [s, g, r, c, p, rd] = await Promise.all([
         api.getSaldo(mesAlvo),
         api.getGastos(mesAlvo),
         api.getResumo(mesAlvo),
         api.getCompromissos(mesAlvo),
         api.getProjecao(6, mesAlvo),
+        api.getRendas(mesAlvo),
       ]);
       setSaldo(s);
       setGastos(g);
       setResumo(r);
       setCompromissos(c);
       setProjecao(p);
+      setRendas(rd);
       // Sem renda o saldo não significa nada: o onboarding é obrigatório.
       // Esta carga só ABRE o onboarding; quem fecha é o último passo ou o
       // "pular" — senão salvar a renda no passo 1 já derrubaria os passos 2 e 3.
@@ -95,6 +99,7 @@ export default function App() {
     setProcessando(true);
     setErro('');
     setConf(null);
+    setEntradaConf(null);
     setSug(null);
     try {
       const r = await api.postGasto(mensagem);
@@ -103,6 +108,12 @@ export default function App() {
         // Compromisso recorrente: nada foi gravado, o usuário confirma no card.
         setSug({ tipo: r.tipo, sugestao: r.sugestao });
         vibrar([12, 40, 12]);
+      } else if (r.tipo === 'entrada') {
+        // Dinheiro que entrou: vira renda do mês e aumenta o disponível.
+        vibrar(18);
+        setEntradaConf(r.entrada);
+        setConfSegundos(5);
+        recarregar();
       } else {
         vibrar(18);
         setConf(r.gasto);
@@ -133,6 +144,25 @@ export default function App() {
     setConf(null);
     if (!gasto) return;
     await api.removerGasto(gasto.id);
+    recarregar();
+  };
+
+  // Fim da contagem ou "Ok" no card de entrada.
+  const fecharEntrada = async (campos) => {
+    const registro = entradaConf;
+    setEntradaConf(null);
+    if (!registro || !campos) return;
+    if (campos.valor !== registro.valor) {
+      await api.editarRenda(registro.id, { valor: campos.valor });
+      recarregar();
+    }
+  };
+
+  const desfazerEntrada = async () => {
+    const registro = entradaConf;
+    setEntradaConf(null);
+    if (!registro) return;
+    await api.removerRenda(registro.id, mes);
     recarregar();
   };
 
@@ -186,6 +216,32 @@ export default function App() {
   const mudarMes = (n) => setMes((m) => api.somaMes(m, n));
 
   // -------------------------------------------------------------------------
+  // Compromissos
+  // -------------------------------------------------------------------------
+
+  // `id` nulo cria; com id, edita. Um só caminho para os dois tipos.
+  const salvarCompromisso = async (tipo, id, dados) => {
+    try {
+      if (!id) await api.confirmarCompromisso(tipo, dados);
+      else if (tipo === 'parcelamento') await api.editarParcelamento(id, dados);
+      else await api.editarContaFixa(id, dados);
+      await recarregar();
+    } catch (e) {
+      setErro(e.message || 'Não consegui salvar esse compromisso.');
+    }
+  };
+
+  const excluirCompromisso = async (tipo, id) => {
+    try {
+      if (tipo === 'parcelamento') await api.removerParcelamento(id);
+      else await api.removerContaFixa(id);
+      await recarregar();
+    } catch (e) {
+      setErro(e.message || 'Não consegui excluir esse compromisso.');
+    }
+  };
+
+  // -------------------------------------------------------------------------
   // Ajustes
   // -------------------------------------------------------------------------
 
@@ -206,28 +262,15 @@ export default function App() {
     URL.revokeObjectURL(a.href);
   };
 
+  const removerEntradaRenda = async (id) => {
+    await api.removerRenda(id, mes);
+    recarregar();
+  };
+
   const refazerOnboarding = async () => {
     await api.limparRenda(mes);
     setOnboardando(true);
     recarregar();
-  };
-
-  // Cada passo do onboarding grava e o próximo aparece.
-  const concluirPassoOnboarding = async (passo, valor) => {
-    if (passo === 1) {
-      await api.definirRenda(valor, mes);
-    } else if (passo === 2 && valor) {
-      await api.confirmarCompromisso('conta_fixa', {
-        descricao: 'Conta fixa', valor, dia_vencimento: 10, categoria: 'contas',
-      });
-    } else if (passo === 3 && valor) {
-      await api.confirmarCompromisso('parcelamento', {
-        descricao: 'Parcelamento', valor_parcela: valor, total_parcelas: 12,
-        parcela_inicial: 1, mes_inicio: mes, categoria: 'compras',
-      });
-    }
-    await recarregar();
-    if (passo === 3) setOnboardando(false);
   };
 
   // -------------------------------------------------------------------------
@@ -285,6 +328,7 @@ export default function App() {
               <Compromissos
                 compromissos={compromissos} saldo={saldo} mes={mes}
                 aoVerProjecao={() => setTela('projecao')}
+                aoSalvar={salvarCompromisso} aoExcluir={excluirCompromisso}
               />
             )}
             {tela === 'projecao' && (
@@ -292,8 +336,9 @@ export default function App() {
             )}
             {tela === 'config' && (
               <Ajustes
-                mes={mes} saldo={saldo}
-                aoSalvarRenda={salvarRenda} aoTestarSaude={api.health}
+                mes={mes} saldo={saldo} rendas={rendas}
+                aoSalvarRenda={salvarRenda} aoRemoverRenda={removerEntradaRenda}
+                aoTestarSaude={api.health}
                 aoExportar={exportarCsv} aoRefazer={refazerOnboarding}
               />
             )}
@@ -312,6 +357,16 @@ export default function App() {
           segundosIniciais={confSegundos}
           aoDesfazer={desfazer}
           aoConfirmar={fecharConfirmacao}
+        />
+      )}
+
+      {entradaConf && (
+        <CardConfirmacao
+          key={`entrada-${entradaConf.id}`}
+          entrada={entradaConf}
+          segundosIniciais={confSegundos}
+          aoDesfazer={desfazerEntrada}
+          aoConfirmar={fecharEntrada}
         />
       )}
 
@@ -335,8 +390,12 @@ export default function App() {
 
       {onboardando && (
         <Onboarding
-          aoConcluirPasso={concluirPassoOnboarding}
-          aoPular={() => setOnboardando(false)}
+          mes={mes}
+          compromissos={compromissos}
+          aoDefinirRenda={async (v) => { await api.definirRenda(v, mes); await recarregar(); }}
+          aoAdicionarCompromisso={(tipo, dados) => salvarCompromisso(tipo, null, dados)}
+          aoRemoverCompromisso={excluirCompromisso}
+          aoConcluir={() => setOnboardando(false)}
         />
       )}
     </div>

@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react';
 import { nomeMes, USAR_MOCK } from '../../api';
+import { fmt } from '../../utils/formato';
 
 // Configurações: renda do mês, status da conexão, exportar CSV e refazer o
 // onboarding.
-export default function Ajustes({ mes, saldo, aoSalvarRenda, aoTestarSaude, aoExportar, aoRefazer }) {
+export default function Ajustes({
+  mes, saldo, rendas, aoSalvarRenda, aoRemoverRenda, aoTestarSaude, aoExportar, aoRefazer,
+}) {
   const [renda, setRenda] = useState('');
   const [saude, setSaude] = useState('não testado');
 
-  // Sincroniza o campo quando o saldo chega ou o mês muda.
+  // O campo edita só a linha fixa "Renda" (o salário). As outras entradas do
+  // mês — um pix lançado pelo chat, por exemplo — aparecem na lista abaixo e
+  // não são tocadas ao salvar.
+  const principal = (rendas?.entradas || []).find((r) => r.descricao === 'Renda');
+  const extras = (rendas?.entradas || []).filter((r) => r.descricao !== 'Renda');
+
   useEffect(() => {
-    setRenda(saldo && saldo.renda_total ? String(saldo.renda_total) : '');
-  }, [saldo, mes]);
+    setRenda(principal ? String(principal.valor) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [principal?.id, principal?.valor, mes]);
 
   const testar = async () => {
     setSaude('testando…');
@@ -40,6 +49,38 @@ export default function Ajustes({ mes, saldo, aoSalvarRenda, aoTestarSaude, aoEx
           SALVAR
         </button>
       </div>
+
+      {extras.length > 0 && (
+        <>
+          <div className="font-mono text-[10px] tracking-[.2em] uppercase opacity-55 mt-[22px] mb-1">
+            Outras entradas de {nomeMes(mes)}
+          </div>
+          {extras.map((r) => (
+            <div
+              key={r.id}
+              className="flex justify-between items-center gap-3 py-[10px] border-b border-[rgba(22,19,13,.16)] min-h-[44px]"
+            >
+              <span className="font-sans text-[15px] font-medium truncate">{r.descricao}</span>
+              <div className="flex items-center gap-3 flex-none">
+                <span className="font-valor font-bold text-[26px] leading-none text-carimbo">
+                  +{fmt(r.valor)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => aoRemoverRenda(r.id)}
+                  aria-label={`Remover ${r.descricao}`}
+                  className="opacity-50 px-2 min-h-[44px] text-[15px]"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+          <div className="font-mono text-[10px] opacity-45 mt-2 leading-[1.6]">
+            Total do mês: {fmt(saldo ? saldo.renda_total : 0)} — salário mais entradas.
+          </div>
+        </>
+      )}
 
       <div className="font-mono text-[10px] tracking-[.2em] uppercase opacity-55 mt-[26px] mb-2">
         Conexão

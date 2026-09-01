@@ -50,6 +50,46 @@ function diasNoMes(mes) {
 }
 
 // ---------------------------------------------------------------------------
+// Ciclo da fatura
+// ---------------------------------------------------------------------------
+// O período de referência do app não é o mês do calendário: ele vai do dia
+// seguinte ao fechamento do cartão até o fechamento seguinte. Quem manda nos
+// dias é o backend (`GET /api/ciclo`); os valores abaixo só existem para o
+// modo de demonstração e como último recurso se a chamada falhar.
+export const CICLO_PADRAO = { dia_fechamento: 28, dia_recebimento: 30, dia_pagamento: 5 };
+
+const diaDoMes = (mes, dia) => `${mes}-${String(Math.min(dia, diasNoMes(mes))).padStart(2, '0')}`;
+
+function somaDias(data, n) {
+  const [ano, mes, dia] = data.split('-').map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia + n)).toISOString().slice(0, 10);
+}
+
+// Espelha `src/utils/ciclo.js` do backend. Só roda no mock.
+function janelaLocal(ciclo, cfg = CICLO_PADRAO) {
+  const anterior = somaMes(ciclo, -1);
+  const inicio = somaDias(diaDoMes(anterior, cfg.dia_fechamento), 1);
+  const mesRenda = cfg.dia_recebimento > cfg.dia_fechamento ? anterior : ciclo;
+  const recebimento = diaDoMes(mesRenda, cfg.dia_recebimento);
+  return {
+    ciclo,
+    inicio,
+    fim: diaDoMes(ciclo, cfg.dia_fechamento),
+    data_recebimento: recebimento < inicio ? inicio : recebimento,
+    vencimento_fatura: diaDoMes(somaMes(ciclo, 1), cfg.dia_pagamento),
+  };
+}
+
+function cicloLocal(data, cfg = CICLO_PADRAO) {
+  const mes = data.slice(0, 7);
+  const dia = Number(data.slice(8, 10));
+  return dia <= Math.min(cfg.dia_fechamento, diasNoMes(mes)) ? mes : somaMes(mes, 1);
+}
+
+// "2026-08-29" -> "29/08". As telas nunca mostram data ISO.
+export const dataCurta = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—');
+
+// ---------------------------------------------------------------------------
 // Transporte
 // ---------------------------------------------------------------------------
 
@@ -174,6 +214,15 @@ function normalizaProjecao(p) {
 // Rotas
 // ---------------------------------------------------------------------------
 
+// Janela do ciclo. O app chama isto ANTES de qualquer número: no dia 29 o
+// ciclo aberto já é o do mês seguinte, e o cliente não tem como adivinhar.
+export async function getCiclo(mes) {
+  if (!USAR_MOCK) return req(`/api/ciclo${mes ? `?mes=${mes}` : ''}`);
+  await espera(60);
+  const atual = cicloLocal(`${db.hoje.mes}-${String(db.hoje.dia).padStart(2, '0')}`);
+  return { ...janelaLocal(mes || atual), ciclo_atual: atual, configuracao: CICLO_PADRAO };
+}
+
 export async function getSaldo(mes = hoje.mes) {
   if (!USAR_MOCK) return req(`/api/saldo?mes=${mes}`);
   await espera(180);
@@ -187,6 +236,7 @@ export async function getSaldo(mes = hoje.mes) {
   const dias_restantes = Math.max(1, db.hoje.dias_no_mes - db.hoje.dia + 1);
   return {
     mes_referencia: mes,
+    ciclo: janelaLocal(mes),
     renda_total, comprometido_total, comprometido_contas_fixas, comprometido_parcelas,
     gasto_livre, disponivel,
     percentual_consumido: renda_total ? ((comprometido_total + gasto_livre) / renda_total) * 100 : 0,

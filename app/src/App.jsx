@@ -30,7 +30,11 @@ export default function App() {
   useTecladoIOS();
 
   const [tela, setTela] = useState('home');
-  const [mes, setMes] = useState(api.hoje.mes);
+  // O mês só é conhecido depois de perguntar ao backend qual ciclo está
+  // aberto: dia 29 já pertence ao ciclo seguinte, então o calendário do
+  // navegador daria a resposta errada em três dias de cada mês.
+  const [mes, setMes] = useState(null);
+  const [cicloAtual, setCicloAtual] = useState(null);
 
   const [saldo, setSaldo] = useState(null);
   const [gastos, setGastos] = useState([]);
@@ -78,16 +82,26 @@ export default function App() {
       // "pular" — senão salvar a renda no passo 1 já derrubaria os passos 2 e 3.
       // Só dispara no mês corrente: navegar para um mês futuro sem renda
       // cadastrada não é motivo para refazer a configuração inicial.
-      if (mesAlvo === api.hoje.mes) setOnboardando((aberto) => aberto || !s.renda_definida);
+      if (mesAlvo === cicloAtual) setOnboardando((aberto) => aberto || !s.renda_definida);
       setErro('');
     } catch (e) {
       setErro(e.message || 'Falha ao buscar os dados do mês.');
     } finally {
       setCarregando(false);
     }
-  }, [mes]);
+  }, [mes, cicloAtual]);
 
-  useEffect(() => { recarregar(mes); }, [mes, recarregar]);
+  // Descobre o ciclo aberto antes da primeira carga. Se a chamada falhar, cai
+  // no mês do calendário: melhor mostrar o período quase certo do que nada.
+  useEffect(() => {
+    let vivo = true;
+    api.getCiclo()
+      .then((c) => { if (vivo) { setCicloAtual(c.ciclo_atual); setMes(c.ciclo_atual); } })
+      .catch(() => { if (vivo) { setCicloAtual(api.hoje.mes); setMes(api.hoje.mes); } });
+    return () => { vivo = false; };
+  }, []);
+
+  useEffect(() => { if (mes) recarregar(mes); }, [mes, recarregar]);
 
   // -------------------------------------------------------------------------
   // Entrada de lançamento
@@ -277,7 +291,7 @@ export default function App() {
   // Render
   // -------------------------------------------------------------------------
 
-  const cabecalhoEsq = `${nomeMes(mes).replace('/', ' / ')} — ${TITULOS[tela]}`;
+  const cabecalhoEsq = `${mes ? nomeMes(mes).replace('/', ' / ') : '—'} — ${TITULOS[tela]}`;
   const cabecalhoDir = saldo && saldo.renda_definida
     ? `${Math.round(saldo.percentual_consumido)}% consumido`
     : 'sem renda';
@@ -391,6 +405,7 @@ export default function App() {
       {onboardando && (
         <Onboarding
           mes={mes}
+          ciclo={saldo ? saldo.ciclo : null}
           compromissos={compromissos}
           aoDefinirRenda={async (v) => { await api.definirRenda(v, mes); await recarregar(); }}
           aoAdicionarCompromisso={(tipo, dados) => salvarCompromisso(tipo, null, dados)}

@@ -1,6 +1,6 @@
 import LinhaLancamento from '../LinhaLancamento';
 import { fmt, fmt0 } from '../../utils/formato';
-import { MESES } from '../../api';
+import { MESES, dataCurta } from '../../api';
 
 // Régua do mês: 24 blocos. Os primeiros N hachurados (comprometido), os
 // seguintes M sólidos (gasto livre), o resto vazio (disponível).
@@ -44,6 +44,9 @@ export default function Home({ saldo, gastos, mes, quando, aoEditar, aoExcluir }
   const disponivel = saldo ? saldo.disponivel : null;
   const [inteiro, centavos] = (disponivel == null ? '—,—' : fmt(disponivel)).split(',');
   const ultimoDia = new Date(Date.UTC(Number(mes.split('-')[0]), Number(mes.split('-')[1]), 0)).getUTCDate();
+  // Janela real do ciclo da fatura, quando o backend informa. O mês do
+  // calendário é só o rótulo: quem fecha a conta é o dia do fechamento.
+  const ciclo = saldo ? saldo.ciclo : null;
 
   return (
     <div className="pb-2">
@@ -76,6 +79,16 @@ export default function Home({ saldo, gastos, mes, quando, aoEditar, aoExcluir }
           <span className="opacity-55">Gasto</span>
           <span className="font-semibold">{saldo ? fmt0(saldo.gasto_livre) : '—'}</span>
         </div>
+
+        {/* O período que esses números cobrem. Sem isso o app parece estar
+            falando do mês do calendário, que não é o mês do seu dinheiro. */}
+        {ciclo && (
+          <div className="font-mono text-[10.5px] tracking-[.02em] mt-[7px] opacity-55">
+            {dataCurta(ciclo.inicio)} a {dataCurta(ciclo.fim)}
+            <span className="opacity-50"> · </span>
+            fatura vence {dataCurta(ciclo.vencimento_fatura)}
+          </div>
+        )}
       </div>
 
       <Regua saldo={saldo} />
@@ -84,7 +97,7 @@ export default function Home({ saldo, gastos, mes, quando, aoEditar, aoExcluir }
         <div className="flex-1 px-[14px] py-[11px]">
           <div className="font-mono text-[11px] tracking-[.16em] uppercase opacity-65">Ritmo diário</div>
           <div className="font-mono text-[10.5px] opacity-45 mt-1">
-            até {ultimoDia} de {MESES[Number(mes.split('-')[1]) - 1]}
+            até {ciclo ? dataCurta(ciclo.fim) : `${ultimoDia} de ${MESES[Number(mes.split('-')[1]) - 1]}`}
           </div>
         </div>
         <div className="bg-carimbo text-tinta-clara px-[15px] py-[9px] flex items-baseline gap-1">

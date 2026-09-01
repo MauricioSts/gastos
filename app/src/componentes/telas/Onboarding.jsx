@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import FormularioCompromisso from '../FormularioCompromisso';
 import { fmt, leValor } from '../../utils/formato';
-import { nomeMes } from '../../api';
+import { nomeMes, dataCurta } from '../../api';
 
 // Tela cheia invertida. Aparece sempre que renda_definida === false: sem renda
 // o saldo não significa nada.
@@ -10,7 +10,7 @@ import { nomeMes } from '../../api';
 // vencimento, categoria e, no parcelamento, em que parcela você já está.
 // Chutar esses campos faria o comprometido dos próximos meses nascer errado.
 export default function Onboarding({
-  mes, compromissos, aoDefinirRenda, aoAdicionarCompromisso, aoRemoverCompromisso, aoConcluir,
+  mes, ciclo, compromissos, aoDefinirRenda, aoAdicionarCompromisso, aoRemoverCompromisso, aoConcluir,
 }) {
   const [passo, setPasso] = useState(1);
   const [renda, setRenda] = useState('');
@@ -65,7 +65,10 @@ export default function Onboarding({
             />
           </div>
           <div className="font-mono text-[10px] opacity-45 mt-3 leading-[1.6]">
-            É o salário de {nomeMes(mes)}. Um pix que cair depois você lança pelo chat.
+            {ciclo
+              ? `É o salário que cai em ${dataCurta(ciclo.data_recebimento)} e banca o ciclo de ${dataCurta(ciclo.inicio)} a ${dataCurta(ciclo.fim)}.`
+              : `É o salário de ${nomeMes(mes)}.`}{' '}
+            Um pix que cair depois você lança pelo chat.
           </div>
         </>
       );

@@ -1,5 +1,10 @@
 # Prompt de implementação — acelerar o lançamento de gastos
 
+> **Status: as três fases foram implementadas em 01/09/2026.** O que este
+> documento planejou já está no código; o que ele previu e a medição desmentiu
+> está registrado na seção "Resultado medido" no fim. Leia aquela seção antes
+> de reexecutar qualquer coisa daqui.
+
 > Cole tudo a partir da linha `---` na IA que vai implementar.
 > As medições deste documento foram feitas na VM real (4 OCPUs ARM, sem GPU,
 > `qwen2.5:7b` Q4_K_M via Ollama) em 31/08/2026. Refaça-as antes e depois:
@@ -384,3 +389,52 @@ curl -s http://localhost:3334/api/health
 Se aparecer gasto categorizado errado em produção, o caminho não é desligar o
 atalho inteiro: é tirar da tabela `TERMOS` a palavra que causou o erro. Termo
 ambíguo é o único jeito de esse atalho errar.
+
+---
+
+## Resultado medido (01/09/2026)
+
+Todas as medições abaixo são desta VM, com o modelo já quente.
+
+| Caminho | Antes | Depois |
+|---|---|---|
+| `almoço 24 reais`, `uber 32` (atalho) | 16,3s | **11ms** ponta a ponta |
+| `recebi um pix de 10` (LLM) | 16,3s | **3,3s** |
+| `comprei um fone em 6x de 90` (LLM) | 16,3s | **4,8s** |
+
+Estado final: `qwen2.5:3b`, schema de chaves curtas, atalho determinístico
+ligado. Testes: `teste-atalho.js` 19/19, `teste-classificacao.js` 18/18,
+`./test.sh` 35 ok.
+
+### O que o plano previu errado
+
+- **Fase 2 não custou acurácia.** A previsão era cair de 17/17 para 16/17 em
+  `pix de 30 pro joao`. Com o `qwen2.5:7b` a matriz deu 18/18 com as chaves
+  curtas, sem tocar no prompt.
+- **Fase 3 sozinha custa acurácia, e o bloco de exemplos resolve.** O
+  `qwen2.5:3b` puro deu **15/18**: perdeu `pix de 30 pro joao` (virou entrada),
+  `vendi a bike por 300` (virou gasto) e — o pior — `comprei um fone em 6x de 90`
+  (virou gasto avulso, ou seja, um parcelamento silenciosamente perdido).
+  Um bloco de 6 exemplos com o JSON de saída, no fim do `PROMPT_SISTEMA`, levou
+  o 3b a **18/18**. O 7b continua 18/18 com o mesmo prompt, então dá para voltar
+  atrás trocando só `OLLAMA_MODEL`.
+- **Latência por modelo, com o prompt final:** 3b ~4,1s por chamada, 7b ~9,2s.
+
+### O bloco de exemplos é carga, não enfeite
+
+Ele existe porque um modelo de 3B não segue a lista de precedência só pela
+descrição em prosa. Se alguém encurtar o `PROMPT_SISTEMA` e tirar os exemplos,
+a matriz volta para 15/18 — e o caso perdido mais caro é o parcelamento, que
+contamina vários meses. Rode `node teste-classificacao.js` depois de qualquer
+mexida no prompt, no schema ou no modelo.
+
+### Cuidado com `./test.sh` e o banco de produção
+
+`./test.sh` grava no banco apontado pelo `.env` e **não remove os gastos que
+cria** (só rendas, contas fixas e parcelamentos), além de deixar um orçamento
+de 800 cadastrado. Rode sempre contra uma instância isolada:
+
+```bash
+PORT=3400 DB_PATH=data/teste.db node src/server.js &
+BASE=http://localhost:3400 ./test.sh
+```

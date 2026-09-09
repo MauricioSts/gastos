@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#03060A; -webkit-font-smoothing:antialiased; }
+  a { color:#9BFF3B; text-decoration:none; }
+  a:hover { color:#C9FF8F; }
+  input, select, textarea { font-size:16px; font-family:inherit; }
+  .rolagem { -webkit-overflow-scrolling:touch; overscroll-behavior:contain; scrollbar-width:none; }
+  .rolagem::-webkit-scrollbar { display:none; }
+  @keyframes flutuar { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+  @keyframes piscar { 0%,92%,100%{transform:scaleY(1)} 95%{transform:scaleY(.08)} }
+  @keyframes varrer { 0%,100%{transform:translateX(-5px)} 50%{transform:translateX(5px)} }
+  @keyframes olhar { 0%,16%{transform:translateX(0)} 34%,56%{transform:translateX(9px)} 74%,100%{transform:translateX(0)} }
+  @keyframes joia { 0%,12%{transform:translateY(15px) rotate(22deg)} 26%{transform:translateY(-2px) rotate(-7deg)} 34%,66%{transform:translateY(0) rotate(0deg)} 78%,100%{transform:translateY(15px) rotate(22deg)} }
+  @keyframes inclinar { 0%,100%{transform:rotate(0deg)} 45%{transform:rotate(-5deg)} }
+  @keyframes respirar { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+  @keyframes pulsoTraco { 0%,100%{opacity:.35} 50%{opacity:1} }
+  @keyframes correnteza { 0%{stroke-dashoffset:0} 100%{stroke-dashoffset:-28} }
+  @keyframes brilho { 0%,100%{filter:drop-shadow(0 0 3px rgba(155,255,59,.5))} 50%{filter:drop-shadow(0 0 12px rgba(155,255,59,.9))} }
+  @keyframes subirValor { 0%{transform:translateY(12px);opacity:0} 100%{transform:translateY(0);opacity:1} }
+  @keyframes descer { 0%{transform:translateY(-130%);opacity:0} 70%{transform:translateY(4px);opacity:1} 100%{transform:translateY(0);opacity:1} }
+  @keyframes emergir { 0%{transform:translateY(22px) scale(.97);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
+  @keyframes escanear { 0%{transform:translateY(-100%)} 100%{transform:translateY(1200%)} }
+  @keyframes esteira { 0%{background-position:0 0} 100%{background-position:36px 0} }
+</style>
+<script type="module">
+  import * as API from "./api.js";
+  window.API = API;
+  window.dispatchEvent(new Event("api-pronta"));
+</script>
+</helmet>
+
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 80% at 50% 0%,#0B1418 0%,#03060A 60%);padding:22px 0">
+<div style="position:relative;width:390px;height:844px;overflow:hidden;background:#05080A;color:#EDF3E9;font-family:'Chakra Petch',sans-serif;display:flex;flex-direction:column;border-radius:46px;box-shadow:0 0 0 10px #0A0F11,0 0 0 11px rgba(155,255,59,.18),0 34px 80px rgba(0,0,0,.75)">
+
+  <div style="position:absolute;inset:0;pointer-events:none;z-index:41;opacity:.5;background-image:linear-gradient(rgba(155,255,59,.045) 1px,transparent 1px);background-size:100% 3px"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 28px 0;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;flex:none;z-index:20;color:#EDF3E9">
+    <span>9:41</span>
+    <span style="opacity:.6;letter-spacing:.06em">▮▮▮ ⌁ 87%</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 20px 11px;border-bottom:1px solid rgba(155,255,59,.18);flex:none;z-index:20;gap:10px;white-space:nowrap">
+    <div style="display:flex;align-items:center;gap:9px;overflow:hidden">
+      <dc-import name="Minimau Logo" cor-olho="{{ corOlho }}" style="width:22px;height:22px;flex:none" hint-size="22px,22px"></dc-import>
+      <span style="font-weight:700;font-size:14px;letter-spacing:.3em;text-transform:uppercase">Minimau</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.4;overflow:hidden;text-overflow:ellipsis">/ {{ tituloTela }}</span>
+    </div>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;flex:none;color:{{ corCiclo }}">{{ rotuloCiclo }}</span>
+  </div>
+
+  <div class="rolagem" style="flex:1;overflow-y:auto;overflow-x:hidden;position:relative">
+
+    <sc-if value="{{ telaHome }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Home" style="padding:0 0 8px">
+
+        <div style="margin:16px 16px 0;position:relative;border:1px solid rgba(155,255,59,.22);border-radius:22px;background:linear-gradient(155deg,#0E1518 0%,#080C0E 100%);padding:16px 16px 16px 12px;display:flex;gap:12px;align-items:center;overflow:hidden">
+          <div style="position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:60px;background:radial-gradient(closest-side,rgba(155,255,59,.16),transparent)"></div>
+          <dc-import name="Minimau Mascote" cor-olho="{{ corOlho }}" style="width:104px;height:114px;flex:none;margin:-10px -6px -14px -6px;pointer-events:none" hint-size="104px,114px"></dc-import>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:#9BFF3B;opacity:.8">{{ estadoMinimau }}</div>
+            <div style="font-size:15.5px;font-weight:500;line-height:1.35;margin-top:6px;text-wrap:pretty">{{ falaMinimau }}</div>
+          </div>
+        </div>
+
+        <div style="padding:22px 20px 0">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;opacity:.45">Disponível de fato</div>
+          <div key="{{ chaveSaldo }}" style="display:flex;align-items:flex-end;gap:7px;margin-top:2px;animation:subirValor .5s cubic-bezier(.2,.9,.25,1)">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;padding-bottom:14px;opacity:.5">R$</span>
+            <span style="font-weight:700;font-size:82px;line-height:.86;letter-spacing:-.02em">{{ heroInt }}<span style="color:#9BFF3B">,{{ heroCent }}</span></span>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline">
+            <span style="opacity:.4">Renda</span><span style="font-weight:600">{{ fmtRenda }}</span>
+            <span style="opacity:.3">−</span>
+            <span style="opacity:.4">Travado</span><span style="font-weight:600;color:#9BFF3B">{{ fmtComprometido }}</span>
+            <span style="opacity:.3">−</span>
+            <span style="opacity:.4">Gasto</span><span style="font-weight:600">{{ fmtGastoLivre }}</span>
+          </div>
+        </div>
+
+        <div style="padding:18px 20px 0">
+          <div style="display:flex;gap:2px;height:14px">
+            <sc-for list="{{ blocos }}" as="b" hint-placeholder-count="24">
+              <div style="flex:1;border-radius:2px;border:1px solid {{ b.borda }};background:{{ b.fundo }}"></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:9px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.6">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:rgba(155,255,59,.28);border:1px solid rgba(155,255,59,.5)"></span>travado</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#9BFF3B"></span>gasto livre</span>
+            <span>{{ diasRestantes }}d restantes</span>
+          </div>
+        </div>
+
+        <div style="margin:20px 16px 0;border:1px solid rgba(155,255,59,.22);border-radius:22px;overflow:hidden;background:#0B1013">
+          <div style="display:flex">
+            <div style="flex:1;padding:13px 16px;border-right:1px solid rgba(237,243,233,.1)">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;opacity:.45">Ritmo do dia</div>
+              <div style="display:flex;align-items:baseline;gap:5px;margin-top:5px">
+                <span style="font-weight:700;font-size:34px;line-height:1">{{ fmtRitmo }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;opacity:.45">/DIA</span>
+              </div>
+            </div>
+            <div style="flex:1;padding:13px 16px;background:{{ fundoSobra }}">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:{{ rotuloSobraCor }}">{{ rotuloSobra }}</div>
+              <div style="display:flex;align-items:baseline;gap:5px;margin-top:5px">
+                <span style="font-weight:700;font-size:34px;line-height:1;color:{{ corSobra }}">{{ fmtSobraHoje }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:{{ rotuloSobraCor }}">HOJE</span>
+              </div>
+            </div>
+          </div>
+          <div style="padding:0 16px 14px">
+            <div style="height:8px;border-radius:4px;background:rgba(237,243,233,.09);overflow:hidden;display:flex">
+              <div style="width:{{ larguraGastoHoje }};background:{{ corSobra }};border-radius:4px"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.5">
+              <span>gastei {{ fmtGastoHoje }} hoje</span>
+              <span>{{ legendaSobra }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:24px 20px 0">
+          <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;padding-bottom:8px;border-bottom:1px solid rgba(237,243,233,.12)">
+            <span>Últimos lançamentos</span><span>Valor</span>
+          </div>
+          <sc-if value="{{ semGastos }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:28px 0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;opacity:.45;line-height:1.7">Memória vazia.<br />Diga o primeiro gasto ao Minimau ali embaixo.</div>
+          </sc-if>
+          <sc-for list="{{ recentes }}" as="g" hint-placeholder-count="4">
+            <div style="position:relative;overflow:hidden;border-bottom:1px solid rgba(237,243,233,.09)">
+              <div style="position:absolute;inset:0;display:flex;justify-content:flex-end">
+                <div onClick="{{ g.onEditar }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#1A2226;color:#EDF3E9;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em">EDITAR</div>
+                <div onClick="{{ g.onExcluir }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#FF5A3C;color:#05080A;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em">EXCLUIR</div>
+              </div>
+              <div onPointerDown="{{ g.onDown }}" onPointerMove="{{ g.onMove }}" onPointerUp="{{ g.onUp }}" onPointerCancel="{{ g.onUp }}" style="position:relative;background:#05080A;display:flex;justify-content:space-between;align-items:center;padding:13px 0;min-height:44px;touch-action:pan-y;transition:{{ g.transicao }};transform:{{ g.transform }}">
+                <div style="display:flex;align-items:center;gap:11px;padding-right:10px;min-width:0">
+                  <span style="width:6px;height:26px;border-radius:3px;flex:none;background:{{ g.cor }}"></span>
+                  <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                    <span style="font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.descricao }}</span>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.42">{{ g.categoria }} · {{ g.quando }}</span>
+                  </div>
+                </div>
+                <span style="font-weight:700;font-size:26px;line-height:1;flex:none">{{ g.valor }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaPainel }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Painel" style="padding:16px 16px 10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid rgba(155,255,59,.22);border-radius:16px;padding:6px 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase">
+          <span onClick="{{ mesAnterior }}" style="padding:6px 12px;min-height:32px;display:flex;align-items:center;color:#9BFF3B">◀</span>
+          <span style="font-weight:600">{{ mesRotulo }}</span>
+          <span onClick="{{ mesSeguinte }}" style="padding:6px 12px;min-height:32px;display:flex;align-items:center;color:#9BFF3B">▶</span>
+        </div>
+
+        <div style="margin-top:14px;border:1px solid rgba(155,255,59,.22);border-radius:24px;background:linear-gradient(160deg,#0E1518,#070A0C);padding:18px 16px;display:flex;gap:16px;align-items:center">
+          <div style="position:relative;width:148px;height:148px;flex:none">
+            <svg viewBox="0 0 148 148" width="148" height="148" style="transform:rotate(-90deg)">
+              <circle cx="74" cy="74" r="58" fill="none" stroke="rgba(237,243,233,.08)" stroke-width="15"></circle>
+              <sc-for list="{{ arcos }}" as="a" hint-placeholder-count="4">
+                <circle cx="74" cy="74" r="58" fill="none" stroke="{{ a.cor }}" stroke-width="15" stroke-dasharray="{{ a.dash }}" stroke-dashoffset="{{ a.offset }}" stroke-linecap="butt"></circle>
+              </sc-for>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;opacity:.45">gasto livre</span>
+              <span style="font-weight:700;font-size:29px;line-height:1">{{ painelTotal }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;opacity:.45">{{ painelDias }}</span>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:11px">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;opacity:.45">Média diária</div>
+              <div style="font-weight:700;font-size:22px;line-height:1.15">{{ painelMedia }}</div>
+            </div>
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;opacity:.45">Maior dia</div>
+              <div style="font-weight:700;font-size:22px;line-height:1.15">{{ painelMaiorDia }}</div>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;align-self:flex-start;border-radius:20px;padding:5px 10px;background:{{ fundoVariacao }};font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;color:{{ corVariacao }}">{{ rotuloVariacao }}</div>
+          </div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:24px 4px 10px">Por categoria</div>
+        <sc-for list="{{ fatias }}" as="f" hint-placeholder-count="5">
+          <div onClick="{{ f.onFiltrar }}" style="padding:11px 4px;border-bottom:1px solid rgba(237,243,233,.08);min-height:44px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+              <span style="width:9px;height:9px;border-radius:3px;flex:none;background:{{ f.cor }}"></span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;flex:1">{{ f.rotulo }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.45">{{ f.pct }}</span>
+              <span style="font-weight:700;font-size:20px;line-height:1">{{ f.valor }}</span>
+            </div>
+            <div style="height:5px;border-radius:3px;background:rgba(237,243,233,.08);overflow:hidden">
+              <div style="height:100%;border-radius:3px;width:{{ f.largura }};background:{{ f.cor }}"></div>
+            </div>
+          </div>
+        </sc-for>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:26px 4px 12px">Dia a dia</div>
+        <div style="display:flex;align-items:flex-end;gap:2px;height:96px;padding:0 2px;border-bottom:1px solid rgba(237,243,233,.14)">
+          <sc-for list="{{ barrasDia }}" as="d" hint-placeholder-count="31">
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+              <div style="height:{{ d.altura }};border-radius:2px 2px 0 0;background:{{ d.cor }};min-height:2px"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;opacity:.4;margin-top:7px">
+          <span>01</span><span>hoje {{ diaHoje }}</span><span>{{ ultimoDia }}</span>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:20px">
+          <sc-for list="{{ semanas }}" as="s" hint-placeholder-count="4">
+            <div style="flex:1;border:1px solid rgba(237,243,233,.12);border-radius:14px;padding:10px 10px 11px;background:{{ s.fundo }}">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;opacity:.45">{{ s.rotulo }}</div>
+              <div style="font-weight:700;font-size:17px;line-height:1.2;margin-top:4px">{{ s.valor }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:26px 4px 6px">Maiores gastos</div>
+        <sc-for list="{{ maiores }}" as="m" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:11px;padding:11px 4px;border-bottom:1px solid rgba(237,243,233,.08)">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9BFF3B;width:16px">{{ m.pos }}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.descricao }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.42;margin-top:2px">{{ m.categoria }} · dia {{ m.dia }}</div>
+            </div>
+            <span style="font-weight:700;font-size:22px">{{ m.valor }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaHistorico }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Historico" style="padding:16px 16px 10px">
+        <input value="{{ busca }}" onChange="{{ setBusca }}" placeholder="buscar lançamento…" style="width:100%;box-sizing:border-box;border:1px solid rgba(155,255,59,.24);border-radius:14px;background:#0B1013;padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:16px;outline:none;color:#EDF3E9" />
+        <div class="rolagem" style="display:flex;gap:7px;overflow-x:auto;margin-top:12px;padding-bottom:4px">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="6">
+            <div onClick="{{ c.onClick }}" style="flex:none;padding:8px 13px;min-height:36px;display:flex;align-items:center;border-radius:20px;border:1px solid {{ c.borda }};font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;background:{{ c.fundo }};color:{{ c.cor }}">{{ c.rotulo }}</div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ historicoVazio }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:44px 0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;opacity:.45;line-height:1.7;text-align:center">Nada com esse filtro.</div>
+        </sc-if>
+        <sc-for list="{{ dias }}" as="d" hint-placeholder-count="3">
+          <div style="margin-top:22px">
+            <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;border-bottom:1px solid rgba(155,255,59,.24);padding-bottom:6px;color:#9BFF3B">
+              <span>{{ d.rotulo }}</span><span style="opacity:.6">{{ d.total }}</span>
+            </div>
+            <sc-for list="{{ d.itens }}" as="g" hint-placeholder-count="2">
+              <div style="position:relative;overflow:hidden;border-bottom:1px solid rgba(237,243,233,.09)">
+                <div style="position:absolute;inset:0;display:flex;justify-content:flex-end">
+                  <div onClick="{{ g.onEditar }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#1A2226;color:#EDF3E9;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em">EDITAR</div>
+                  <div onClick="{{ g.onExcluir }}" style="width:76px;display:flex;align-items:center;justify-content:center;background:#FF5A3C;color:#05080A;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em">EXCLUIR</div>
+                </div>
+                <div onPointerDown="{{ g.onDown }}" onPointerMove="{{ g.onMove }}" onPointerUp="{{ g.onUp }}" onPointerCancel="{{ g.onUp }}" style="position:relative;background:#05080A;display:flex;justify-content:space-between;align-items:center;padding:12px 0;min-height:44px;touch-action:pan-y;transition:{{ g.transicao }};transform:{{ g.transform }}">
+                  <div style="display:flex;align-items:center;gap:11px;padding-right:10px;min-width:0">
+                    <span style="width:6px;height:24px;border-radius:3px;flex:none;background:{{ g.cor }}"></span>
+                    <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+                      <span style="font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ g.descricao }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.42">{{ g.categoria }} · {{ g.quando }}</span>
+                    </div>
+                  </div>
+                  <span style="font-weight:700;font-size:24px;line-height:1;flex:none">{{ g.valor }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaCompromissos }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Travado" style="padding:16px 16px 10px">
+        <div style="border:1px solid rgba(155,255,59,.28);border-radius:22px;padding:15px 16px;display:flex;justify-content:space-between;align-items:flex-end;background:linear-gradient(150deg,#101A0C,#080C0A)">
+          <div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#9BFF3B;opacity:.85">Travado em {{ mesRotulo }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.45;margin-top:6px">{{ resumoCompromissos }}</div>
+          </div>
+          <div style="font-weight:700;font-size:40px;line-height:.9;color:#9BFF3B">{{ fmtComprometido }}</div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:24px 4px 2px">Contas fixas</div>
+        <sc-for list="{{ contasFixas }}" as="c" hint-placeholder-count="2">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 4px;border-bottom:1px solid rgba(237,243,233,.09);min-height:44px">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-size:15px;font-weight:500">{{ c.descricao }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.42">vence dia {{ c.dia }} · todo mês</span>
+            </div>
+            <span style="font-weight:700;font-size:24px;line-height:1">{{ c.valor }}</span>
+          </div>
+        </sc-for>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:26px 4px 2px">Parcelamentos</div>
+        <sc-for list="{{ parcelamentos }}" as="p" hint-placeholder-count="1">
+          <div style="padding:14px 4px;border-bottom:1px solid rgba(237,243,233,.09)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font-size:15px;font-weight:500">{{ p.descricao }}</span>
+              <span style="font-weight:700;font-size:24px;line-height:1">{{ p.valor }}</span>
+            </div>
+            <div style="display:flex;gap:3px;margin:10px 0 7px">
+              <sc-for list="{{ p.ticks }}" as="t" hint-placeholder-count="12">
+                <div style="flex:1;height:7px;border-radius:2px;background:{{ t.fundo }}"></div>
+              </sc-for>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.55">{{ p.progresso }}</div>
+          </div>
+        </sc-for>
+
+        <div onClick="{{ irProjecao }}" style="margin-top:24px;border:1px solid rgba(155,255,59,.24);border-radius:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;min-height:44px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase">
+          <span>Projeção de 6 meses</span><span style="color:#9BFF3B">→</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaProjecao }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Projecao" style="padding:16px 16px 10px">
+        <div onClick="{{ irCompromissos }}" style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-bottom:18px">← Travado</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.75;opacity:.5;margin-bottom:20px">A barra cheia é o que já está travado antes do mês começar. Quando uma parcela morre, o Minimau avisa.</div>
+        <sc-for list="{{ projecao }}" as="m" hint-placeholder-count="6">
+          <div style="padding:12px 0;border-bottom:1px solid rgba(237,243,233,.08)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:{{ m.peso }}">{{ m.rotulo }}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.45">sobram {{ m.sobra }}</span>
+            </div>
+            <div style="position:relative;height:22px;border-radius:6px;background:rgba(237,243,233,.07);overflow:hidden">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:{{ m.largura }};background:linear-gradient(90deg,rgba(155,255,59,.85),rgba(111,209,31,.55))"></div>
+              <div style="position:absolute;left:9px;top:0;bottom:0;display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;color:#05080A">{{ m.comprometido }}</div>
+            </div>
+            <sc-if value="{{ m.temAlivio }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;border-radius:20px;background:rgba(155,255,59,.14);color:#9BFF3B;padding:5px 11px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase">↓ {{ m.alivio }}</div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ telaConfig }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Ajustes" style="padding:16px 16px 10px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4">Renda de {{ mesRotulo }}</div>
+        <div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(155,255,59,.24);border-radius:18px;padding:10px 14px;margin-top:9px;background:#0B1013">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;opacity:.45">R$</span>
+          <input value="{{ rendaCampo }}" onChange="{{ setRendaCampo }}" inputMode="decimal" style="flex:1;border:none;background:transparent;outline:none;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:36px;color:#EDF3E9;width:100%;padding:0" />
+          <div onClick="{{ salvarRenda }}" style="background:#9BFF3B;color:#05080A;border-radius:12px;padding:11px 14px;min-height:44px;display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;font-weight:600">SALVAR</div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:26px 0 9px">Fatura e avisos</div>
+        <div style="border:1px solid rgba(155,255,59,.22);border-radius:18px;background:#0B1013;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid rgba(237,243,233,.09);min-height:44px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.75">Fatura fecha no dia</span>
+            <input value="{{ fechamentoCampo }}" onChange="{{ setFechamentoCampo }}" inputMode="numeric" style="width:62px;border:1px solid rgba(155,255,59,.3);border-radius:10px;background:#05080A;padding:7px 10px;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;color:#9BFF3B;outline:none;text-align:center" />
+          </div>
+          <div onClick="{{ alternarAviso }}" style="display:flex;align-items:center;justify-content:space-between;padding:13px 15px;min-height:44px">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.75">Avisar 1 dia antes</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;opacity:.4">notificação push do Minimau</span>
+            </div>
+            <div style="width:50px;height:29px;border-radius:16px;flex:none;padding:3px;box-sizing:border-box;display:flex;justify-content:{{ posBotaoAviso }};background:{{ fundoBotaoAviso }};transition:background .2s">
+              <span style="width:23px;height:23px;border-radius:12px;background:{{ corPinoAviso }};transition:all .2s"></span>
+            </div>
+          </div>
+        </div>
+        <div onClick="{{ testarAviso }}" style="margin-top:9px;border:1px dashed rgba(155,255,59,.3);border-radius:14px;padding:12px 15px;min-height:44px;display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#9BFF3B">
+          <span>Ver a notificação</span><span>◍</span>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:26px 0 9px">Conexão</div>
+        <div style="border:1px solid rgba(237,243,233,.14);border-radius:16px;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;min-height:44px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.75">{{ statusSaude }}</span>
+          <div onClick="{{ testarSaude }}" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#9BFF3B;padding:8px 0">testar</div>
+        </div>
+
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.4;margin:26px 0 9px">Dados</div>
+        <div onClick="{{ exportarCsv }}" style="border:1px solid rgba(237,243,233,.14);border-radius:16px;padding:14px 15px;min-height:44px;display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase">
+          <span>Exportar CSV</span><span style="color:#9BFF3B">↓</span>
+        </div>
+        <div onClick="{{ refazerOnboarding }}" style="border:1px solid rgba(237,243,233,.1);border-radius:16px;padding:14px 15px;margin-top:10px;min-height:44px;display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.6">
+          <span>Refazer configuração</span><span>↺</span>
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;opacity:.32;margin-top:22px;line-height:1.8">Dados mockados. A camada de API está isolada em api.js — troque BASE_URL e USAR_MOCK para plugar o backend.</div>
+      </div>
+    </sc-if>
+
+    <div style="height:136px"></div>
+  </div>
+
+  <sc-if value="{{ mostrarAviso }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;top:52px;left:10px;right:10px;z-index:50;border-radius:22px;border:1px solid rgba(155,255,59,.34);background:rgba(10,16,19,.94);backdrop-filter:blur(16px);padding:12px 14px;display:flex;gap:12px;align-items:flex-start;box-shadow:0 20px 44px rgba(0,0,0,.7);animation:descer .55s cubic-bezier(.2,.9,.25,1)">
+      <div style="width:36px;height:36px;border-radius:11px;flex:none;background:#9BFF3B;display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 34 34" width="27" height="27">
+          <circle cx="17" cy="17" r="14" fill="#12181B"></circle>
+          <circle cx="17" cy="17" r="11" fill="none" stroke="#05080A" stroke-width="3" stroke-dasharray="3 2.4"></circle>
+          <circle cx="17" cy="17" r="8.4" fill="#0A0E10"></circle>
+          <circle cx="17" cy="17" r="7" fill="#5FBE23"></circle>
+          <circle cx="17" cy="17" r="4.4" fill="none" stroke="#0A0E10" stroke-width="1.2" stroke-opacity=".6"></circle>
+          <circle cx="17" cy="17" r="2.2" fill="#C9FF8F" style="animation:respirar 2.4s ease-in-out infinite;transform-origin:17px 17px"></circle>
+          <path d="M11 11 a9 9 0 0 1 6 -2.6 a11 11 0 0 0 -8 5.4 z" fill="#FFFFFF" opacity=".45"></path>
+        </svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#9BFF3B">Minimau</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;opacity:.4">agora</span>
+        </div>
+        <div style="font-size:14.5px;font-weight:600;margin-top:4px">{{ avisoTitulo }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.55;opacity:.6;margin-top:3px">{{ avisoTexto }}</div>
+      </div>
+      <span onClick="{{ fecharAviso }}" style="opacity:.45;padding:0 2px;font-size:13px">✕</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mostrarErro }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:14px;right:14px;bottom:190px;z-index:32;border-radius:16px;border:1px solid rgba(255,90,60,.5);background:rgba(24,12,10,.95);padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.55;display:flex;gap:10px;align-items:flex-start;animation:emergir .3s ease-out">
+      <span style="color:#FF5A3C">≠</span><span style="flex:1">{{ erro }}</span>
+      <span onClick="{{ limparErro }}" style="opacity:.5;padding:0 4px">✕</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mostrarConfirmacao }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:12px;right:12px;bottom:180px;z-index:33;border-radius:22px;border:1px solid rgba(155,255,59,.3);background:#0B1013;animation:emergir .34s cubic-bezier(.2,.9,.25,1);box-shadow:0 22px 50px rgba(0,0,0,.7);overflow:hidden">
+      <div style="background:rgba(155,255,59,.12);padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;display:flex;justify-content:space-between;color:#9BFF3B">
+        <span>Anotado</span><span style="opacity:.65">{{ contagemDesfazer }}</span>
+      </div>
+      <div style="padding:13px 14px;display:flex;align-items:center;gap:10px">
+        <input value="{{ confValor }}" onChange="{{ setConfValor }}" inputMode="decimal" style="width:120px;border:1px solid rgba(155,255,59,.28);border-radius:12px;background:#05080A;padding:5px 10px;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:32px;color:#EDF3E9;outline:none" />
+        <select value="{{ confCategoria }}" onChange="{{ setConfCategoria }}" style="flex:1;border:1px solid rgba(237,243,233,.18);border-radius:12px;background:#05080A;padding:10px 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#EDF3E9;outline:none;min-height:44px">
+          <sc-for list="{{ opcoesCategoria }}" as="o" hint-placeholder-count="9">
+            <option value="{{ o.valor }}">{{ o.rotulo }}</option>
+          </sc-for>
+        </select>
+      </div>
+      <div style="padding:0 14px 11px;font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:.55">{{ confDescricao }}</div>
+      <div style="display:flex;border-top:1px solid rgba(237,243,233,.12)">
+        <div onClick="{{ desfazer }}" style="flex:1;padding:13px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;border-right:1px solid rgba(237,243,233,.12);min-height:44px">Desfazer</div>
+        <div onClick="{{ confirmarEdicao }}" style="flex:1;padding:13px;text-align:center;background:#9BFF3B;color:#05080A;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;min-height:44px">Ok</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mostrarSugestao }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:12px;right:12px;bottom:180px;z-index:33;border-radius:22px;border:1px solid #9BFF3B;background:#0B1013;animation:emergir .34s cubic-bezier(.2,.9,.25,1);box-shadow:0 0 0 4px rgba(155,255,59,.1),0 22px 50px rgba(0,0,0,.7);overflow:hidden">
+      <div style="background:#9BFF3B;color:#05080A;padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;font-weight:600">Isto vai se repetir — confirme</div>
+      <div style="padding:13px 14px;display:flex;flex-direction:column;gap:11px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.6;opacity:.8">{{ sugestaoTexto }}</div>
+        <div style="display:flex;gap:9px">
+          <input value="{{ sugValor }}" onChange="{{ setSugValor }}" inputMode="decimal" style="width:112px;border:1px solid rgba(155,255,59,.28);border-radius:12px;background:#05080A;padding:5px 10px;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:28px;color:#EDF3E9;outline:none" />
+          <input value="{{ sugCampo2 }}" onChange="{{ setSugCampo2 }}" inputMode="numeric" style="flex:1;border:1px solid rgba(237,243,233,.18);border-radius:12px;background:#05080A;padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:14px;color:#EDF3E9;outline:none;min-height:44px" />
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;opacity:.45;letter-spacing:.1em;text-transform:uppercase">{{ sugLegenda }}</div>
+      </div>
+      <div style="display:flex;border-top:1px solid rgba(237,243,233,.12)">
+        <div onClick="{{ descartarSugestao }}" style="flex:1;padding:13px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;border-right:1px solid rgba(237,243,233,.12);min-height:44px">Descartar</div>
+        <div onClick="{{ confirmarSugestao }}" style="flex:1;padding:13px;text-align:center;background:#9BFF3B;color:#05080A;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;min-height:44px">Cadastrar</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="flex:none;position:relative;z-index:30;background:linear-gradient(180deg,rgba(5,8,10,.6),#070B0D 22%);border-top:1px solid rgba(155,255,59,.2)">
+    <sc-if value="{{ processando }}" hint-placeholder-val="{{ false }}">
+      <div style="height:3px;background-image:repeating-linear-gradient(90deg,#9BFF3B 0 12px,transparent 12px 18px);background-size:36px 100%;animation:esteira .6s linear infinite"></div>
+    </sc-if>
+    <div style="padding:11px 14px 6px;display:flex;align-items:center;gap:9px">
+      <input value="{{ entrada }}" onChange="{{ setEntrada }}" onKeyDown="{{ aoTeclar }}" placeholder="{{ placeholderAtual }}" style="flex:1;border:1px solid rgba(155,255,59,.28);border-radius:24px;background:#0B1013;padding:13px 16px;font-family:'IBM Plex Mono',monospace;font-size:16px;color:#EDF3E9;outline:none;min-height:46px;box-sizing:border-box;width:100%" />
+      <div onClick="{{ ditar }}" style="width:46px;height:46px;flex:none;border-radius:23px;border:1px solid rgba(155,255,59,.28);display:flex;align-items:center;justify-content:center;font-size:16px;background:{{ fundoMic }};color:{{ corMic }}">◍</div>
+      <div onClick="{{ enviar }}" style="width:46px;height:46px;flex:none;border-radius:23px;background:#9BFF3B;color:#05080A;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">↵</div>
+    </div>
+    <div style="display:flex;padding:4px 8px 30px">
+      <sc-for list="{{ navegacao }}" as="n" hint-placeholder-count="5">
+        <div onClick="{{ n.onClick }}" style="flex:1;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:{{ n.cor }}">
+          <span style="width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;border:1px solid {{ n.borda }};background:{{ n.fundo }}">
+            <span style="width:7px;height:7px;border-radius:2px;background:{{ n.marca }}"></span>
+          </span>
+          <span>{{ n.rotulo }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{ mostrarOnboarding }}" hint-placeholder-val="{{ false }}">
+    <div data-screen-label="Onboarding" style="position:absolute;inset:0;z-index:38;background:radial-gradient(120% 70% at 50% 0%,#101A0E 0%,#04070A 55%);display:flex;flex-direction:column;padding:64px 26px 44px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:14px">
+        <dc-import name="Minimau Mascote" cor-olho="#C9FF8F" style="width:86px;flex:none" hint-size="86px,100px"></dc-import>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:#9BFF3B">Minimau online</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;opacity:.4;margin-top:4px">passo {{ passo }} de 3</div>
+        </div>
+      </div>
+      <div style="font-weight:700;font-size:46px;line-height:1;margin-top:26px;max-width:290px;text-wrap:pretty">{{ onbTitulo }}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.7;opacity:.55;margin-top:14px;max-width:300px">{{ onbTexto }}</div>
+      <div style="margin-top:32px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(155,255,59,.4);padding-bottom:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:16px;opacity:.45">{{ onbPrefixo }}</span>
+        <input value="{{ onbCampo }}" onChange="{{ setOnbCampo }}" inputMode="decimal" placeholder="{{ onbPlaceholder }}" style="flex:1;border:none;background:transparent;outline:none;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:48px;color:#EDF3E9;width:100%;padding:0" />
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;gap:10px">
+        <sc-if value="{{ podePular }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ pularPasso }}" style="flex:1;border:1px solid rgba(237,243,233,.25);border-radius:16px;padding:16px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;min-height:44px">Pular</div>
+        </sc-if>
+        <div onClick="{{ avancarPasso }}" style="flex:2;background:#9BFF3B;color:#05080A;border-radius:16px;padding:16px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;min-height:44px">{{ onbBotao }}</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="position:absolute;left:50%;bottom:9px;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:rgba(237,243,233,.3);z-index:45;pointer-events:none"></div>
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:430,&quot;height&quot;:900}}">
+const PLACEHOLDERS = [
+  "gastei 32 no uber…",
+  "almoço 24 reais",
+  "comprei um fone em 6x de 90",
+  "todo mês pago 99 de internet",
+  "mercado 187,40",
+];
+const RAMPA = ["#9BFF3B", "#6FD11F", "#C9FF8F", "#4E9A16", "#8FB27A", "#2F5C12", "#B8C9AE", "#5F7A4E", "#3D4A36"];
+const fmt = (v) => (v == null ? "—" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const fmt0 = (v) => (v == null ? "—" : Math.round(v).toLocaleString("pt-BR"));
+
+class Component extends DCLogic {
+  state = {
+    api: null, tela: "home", mes: "2026-08",
+    saldo: null, gastos: [], resumo: null, painel: null, compromissos: null, projecao: [],
+    entrada: "", processando: false, erro: "", phIdx: 0,
+    conf: null, confValor: "", confCategoria: "outros", segundos: 5,
+    sug: null, sugValor: "", sugCampo2: "",
+    swipeId: null, swipeDx: 0, arrastando: false,
+    busca: "", filtro: "todas", ouvindo: false,
+    passoOnb: 1, onbCampo: "", onboardando: false,
+    rendaCampo: "", fechamentoCampo: "", saude: "não testado",
+    avisoAberto: false, avisoDispensado: false,
+  };
+
+  async componentDidMount() {
+    const api = await new Promise((resolve) => {
+      if (window.API) return resolve(window.API);
+      window.addEventListener("api-pronta", () => resolve(window.API), { once: true });
+      setTimeout(() => resolve(window.API || null), 6000);
+    });
+    if (!api) { this.setState({ erro: "Não consegui carregar a camada de dados.", onboardando: true }); return; }
+    this.setState({ api });
+    this.recarregar(api, this.state.mes);
+    this._ph = setInterval(() => this.setState((s) => ({ phIdx: (s.phIdx + 1) % PLACEHOLDERS.length })), 3200);
+  }
+  componentWillUnmount() { clearInterval(this._ph); clearInterval(this._tick); clearTimeout(this._aviso); }
+
+  async recarregar(apiArg, mesArg) {
+    const api = apiArg || this.state.api;
+    const mes = mesArg || this.state.mes;
+    if (!api) return;
+    try {
+      const [saldo, gastos, resumo, painel, compromissos, projecao] = await Promise.all([
+        api.getSaldo(mes), api.getGastos(mes), api.getResumo(mes), api.getDashboard(mes),
+        api.getCompromissos(mes), api.getProjecao(6),
+      ]);
+      this.setState({
+        saldo, gastos, resumo, painel, compromissos, projecao,
+        rendaCampo: String(saldo.renda_total || ""),
+        fechamentoCampo: String(saldo.fatura.dia_fechamento),
+        onboardando: !saldo.renda_definida,
+      });
+      // Notificação: dispara quando falta 1 dia (ou menos) para a fatura fechar.
+      if (saldo.renda_definida && saldo.fatura.notificar && saldo.fatura.dias_para_fechar <= 1 && !this.state.avisoDispensado && !this.state.avisoAberto) {
+        clearTimeout(this._aviso);
+        this._aviso = setTimeout(() => { this.setState({ avisoAberto: true }); this.vibrar([10, 60, 10]); }, 900);
+      }
+    } catch (e) {
+      this.setState({ erro: "Falha ao buscar os dados do mês." });
+    }
+  }
+
+  vibrar(p) { if (navigator.vibrate) navigator.vibrate(p); }
+
+  enviar = async () => {
+    const msg = this.state.entrada.trim();
+    if (!msg || this.state.processando) return;
+    this.setState({ processando: true, erro: "", conf: null, sug: null });
+    try {
+      const r = await this.state.api.postGasto(msg);
+      if (r.requer_confirmacao) {
+        const s = r.sugestao;
+        this.setState({ processando: false, entrada: "", sug: { ...s, tipo: r.tipo },
+          sugValor: String(r.tipo === "parcelamento" ? s.valor_parcela.toFixed(2) : s.valor.toFixed(2)),
+          sugCampo2: String(r.tipo === "parcelamento" ? s.total_parcelas : s.dia_vencimento) });
+        this.vibrar([12, 40, 12]);
+      } else {
+        this.vibrar(18);
+        this.setState({ processando: false, entrada: "", conf: r.gasto, confValor: r.gasto.valor.toFixed(2), confCategoria: r.gasto.categoria, segundos: 5 });
+        this.recarregar();
+        clearInterval(this._tick);
+        this._tick = setInterval(() => this.setState((s) => {
+          if (s.segundos <= 1) { clearInterval(this._tick); return { segundos: 0, conf: null }; }
+          return { segundos: s.segundos - 1 };
+        }), 1000);
+      }
+    } catch (e) {
+      this.setState({ processando: false, erro: e.message || "Não consegui interpretar isso." });
+    }
+  };
+  aoTeclar = (e) => { if (e.key === "Enter") this.enviar(); };
+
+  ditar = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { this.setState({ erro: "Ditado indisponível neste navegador." }); return; }
+    const r = new SR(); r.lang = "pt-BR"; r.interimResults = true;
+    r.onresult = (ev) => this.setState({ entrada: Array.from(ev.results).map((x) => x[0].transcript).join("") });
+    r.onend = () => this.setState({ ouvindo: false });
+    r.onerror = () => this.setState({ ouvindo: false, erro: "Não consegui ouvir. Tente digitar." });
+    r.start(); this.setState({ ouvindo: true }); this.vibrar(8);
+  };
+
+  desfazer = async () => {
+    clearInterval(this._tick);
+    const g = this.state.conf;
+    this.setState({ conf: null });
+    if (g) { await this.state.api.removerGasto(g.id); this.recarregar(); }
+  };
+  confirmarEdicao = async () => {
+    clearInterval(this._tick);
+    const g = this.state.conf;
+    const valor = parseFloat(String(this.state.confValor).replace(",", "."));
+    this.setState({ conf: null });
+    if (g) { await this.state.api.editarGasto(g.id, { valor: isNaN(valor) ? g.valor : valor, categoria: this.state.confCategoria }); this.recarregar(); }
+  };
+  confirmarSugestao = async () => {
+    const s = this.state.sug;
+    const valor = parseFloat(String(this.state.sugValor).replace(",", ".")) || 0;
+    const n = parseInt(this.state.sugCampo2, 10) || 1;
+    const dados = s.tipo === "parcelamento"
+      ? { descricao: s.descricao, valor_parcela: valor, total_parcelas: n, parcela_inicial: s.parcela_inicial, mes_inicio: s.mes_inicio, categoria: s.categoria }
+      : { descricao: s.descricao, valor, dia_vencimento: n, categoria: s.categoria };
+    this.setState({ sug: null });
+    await this.state.api.confirmarCompromisso(s.tipo, dados);
+    this.vibrar([10, 30, 10]);
+    this.recarregar();
+  };
+
+  corCat(cat) {
+    const api = this.state.api;
+    const i = api ? api.LISTA_CAT.indexOf(cat) : 0;
+    return RAMPA[(i < 0 ? 8 : i) % RAMPA.length];
+  }
+
+  linha(g) {
+    const ativo = this.state.swipeId === g.id;
+    const dx = ativo ? this.state.swipeDx : 0;
+    return {
+      id: g.id, descricao: g.descricao,
+      categoria: this.state.api ? this.state.api.ROTULO_CAT[g.categoria] : g.categoria,
+      cor: this.corCat(g.categoria),
+      quando: this.quando(g.data_gasto), valor: fmt(g.valor),
+      transform: `translateX(${dx}px)`,
+      transicao: this.state.arrastando && ativo ? "none" : "transform .26s cubic-bezier(.2,.9,.25,1)",
+      onDown: (e) => { this._x0 = e.clientX; this.setState({ swipeId: g.id, arrastando: true, swipeDx: this.state.swipeId === g.id ? this.state.swipeDx : 0 }); },
+      onMove: (e) => {
+        if (!this.state.arrastando || this.state.swipeId !== g.id) return;
+        this.setState({ swipeDx: Math.max(-152, Math.min(0, e.clientX - this._x0)) });
+      },
+      onUp: () => this.setState((s) => ({ arrastando: false, swipeDx: s.swipeDx < -60 ? -152 : 0 })),
+      onEditar: () => this.setState({ swipeDx: 0, conf: g, confValor: g.valor.toFixed(2), confCategoria: g.categoria, segundos: 0 }),
+      onExcluir: async () => { this.setState({ swipeId: null, swipeDx: 0 }); this.vibrar(14); await this.state.api.removerGasto(g.id); this.recarregar(); },
+    };
+  }
+  quando(iso) {
+    const [d, h] = iso.split("T");
+    const dia = Number(d.split("-")[2]);
+    const hj = this.state.api ? this.state.api.hoje.dia : 14;
+    if (dia === hj) return `hoje ${h}`;
+    if (dia === hj - 1) return `ontem ${h}`;
+    return `${String(dia).padStart(2, "0")}/08 ${h}`;
+  }
+
+  irPara = (t) => () => this.setState({ tela: t, swipeId: null, swipeDx: 0 });
+  mudarMes = (n) => () => {
+    const api = this.state.api;
+    if (!api) return;
+    const mes = api.somaMes(this.state.mes, n);
+    this.setState({ mes });
+    this.recarregar(api, mes);
+  };
+
+  renderVals() {
+    const s = this.state, api = s.api, saldo = s.saldo;
+    const disp = saldo ? saldo.disponivel : null;
+    const [hi, hc] = (disp == null ? "—,—" : fmt(disp)).split(",");
+    const rot = api ? api.nomeMes(s.mes) : s.mes;
+    const fat = saldo ? saldo.fatura : null;
+
+    const blocos = [];
+    if (saldo && saldo.renda_total) {
+      const nc = Math.round((saldo.comprometido_total / saldo.renda_total) * 24);
+      const nl = Math.round((saldo.gasto_livre / saldo.renda_total) * 24);
+      for (let i = 0; i < 24; i++) {
+        const travado = i < nc, livre = i >= nc && i < nc + nl;
+        blocos.push({
+          fundo: travado ? "rgba(155,255,59,.28)" : livre ? "#9BFF3B" : "transparent",
+          borda: travado ? "rgba(155,255,59,.5)" : livre ? "#9BFF3B" : "rgba(237,243,233,.14)",
+        });
+      }
+    }
+
+    // ritmo do dia x sobra de hoje
+    const ritmo = saldo ? saldo.ritmo_diario : 0;
+    const gastoHoje = saldo ? saldo.gasto_hoje : 0;
+    const sobra = saldo ? saldo.ritmo_restante_hoje : 0;
+    const estourou = sobra < 0;
+    const pctHoje = ritmo > 0 ? Math.min(100, (gastoHoje / ritmo) * 100) : 0;
+
+    const busca = s.busca.trim().toLowerCase();
+    const filtrados = s.gastos.filter((g) =>
+      (s.filtro === "todas" || g.categoria === s.filtro) &&
+      (!busca || g.descricao.toLowerCase().includes(busca)));
+    const mapaDias = {};
+    filtrados.forEach((g) => { const d = g.data_gasto.split("T")[0]; (mapaDias[d] = mapaDias[d] || []).push(g); });
+    const dias = Object.keys(mapaDias).sort().reverse().map((d) => ({
+      rotulo: `${d.split("-")[2]} de ${api ? api.MESES[Number(d.split("-")[1]) - 1] : ""}`,
+      total: fmt(mapaDias[d].reduce((a, b) => a + b.valor, 0)),
+      itens: mapaDias[d].map((g) => this.linha(g)),
+    }));
+
+    const chips = ["todas", ...(api ? api.LISTA_CAT : [])].map((c) => ({
+      rotulo: c === "todas" ? "todas" : api.ROTULO_CAT[c],
+      fundo: s.filtro === c ? "#9BFF3B" : "transparent",
+      borda: s.filtro === c ? "#9BFF3B" : "rgba(237,243,233,.2)",
+      cor: s.filtro === c ? "#05080A" : "rgba(237,243,233,.75)",
+      onClick: () => this.setState({ filtro: c }),
+    }));
+
+    // painel do mês
+    const p = s.painel;
+    const C = 2 * Math.PI * 58;
+    let acc = 0;
+    const arcos = (p ? p.por_categoria : []).map((c, i) => {
+      const len = (c.percentual / 100) * C;
+      const off = -acc;
+      acc += len;
+      return { cor: this.corCat(c.categoria), dash: `${Math.max(0, len - 2)} ${C}`, offset: off };
+    });
+    const maxCat = p && p.por_categoria.length ? p.por_categoria[0].valor : 1;
+    const fatias = (p ? p.por_categoria : []).map((c) => ({
+      rotulo: api.ROTULO_CAT[c.categoria], valor: fmt0(c.valor),
+      pct: `${Math.round(c.percentual)}%`, cor: this.corCat(c.categoria),
+      largura: `${(c.valor / maxCat) * 100}%`,
+      onFiltrar: () => this.setState({ tela: "historico", filtro: c.categoria }),
+    }));
+    const maxDia = p ? Math.max(1, ...p.por_dia.map((d) => d.valor)) : 1;
+    const diaHj = api ? api.hoje.dia : 14;
+    const barrasDia = (p ? p.por_dia : []).map((d) => ({
+      altura: `${d.valor ? Math.max(4, (d.valor / maxDia) * 100) : 2}%`,
+      cor: d.dia === diaHj ? "#C9FF8F" : d.valor ? "#9BFF3B" : "rgba(237,243,233,.12)",
+    }));
+    const maxSem = p ? Math.max(1, ...p.por_semana.map((x) => x.valor)) : 1;
+    const semanas = (p ? p.por_semana : []).map((x) => ({
+      rotulo: x.rotulo, valor: fmt0(x.valor),
+      fundo: x.valor === maxSem && x.valor > 0 ? "rgba(155,255,59,.12)" : "transparent",
+    }));
+    const maiores = (p ? p.top : []).map((g, i) => ({
+      pos: `0${i + 1}`, descricao: g.descricao, valor: fmt0(g.valor),
+      categoria: api.ROTULO_CAT[g.categoria], dia: g.data_gasto.split("T")[0].split("-")[2],
+    }));
+    const varia = p ? p.variacao : null;
+    const subiu = varia != null && varia > 0;
+
+    const comp = s.compromissos || { fixas: [], parcelas: [] };
+    const parcelamentos = comp.parcelas.map((pc) => ({
+      descricao: pc.descricao, valor: fmt(pc.valor_parcela),
+      ticks: Array.from({ length: pc.total_parcelas }, (_, i) => ({ fundo: i < pc.parcela_atual ? "#9BFF3B" : "rgba(237,243,233,.12)" })),
+      progresso: `${pc.parcela_atual} de ${pc.total_parcelas} · termina em ${api.nomeMes(pc.mes_fim)}`,
+    }));
+
+    const maxProj = Math.max(1, ...s.projecao.map((x) => x.renda || x.comprometido));
+    const projecao = s.projecao.map((x) => ({
+      rotulo: api ? api.nomeMes(x.mes) : x.mes,
+      comprometido: fmt0(x.comprometido), sobra: fmt0(x.sobra),
+      largura: `${(x.comprometido / maxProj) * 100}%`,
+      peso: x.termina.length ? "600" : "400",
+      temAlivio: x.termina.length > 0,
+      alivio: x.termina.length ? `${x.termina.join(", ")} acaba` : "",
+    }));
+
+    const navegacao = [
+      ["home", "Hoje"], ["painel", "Painel"], ["historico", "Histórico"], ["compromissos", "Travado"], ["config", "Ajustes"],
+    ].map(([t, r]) => {
+      const on = s.tela === t || (t === "compromissos" && s.tela === "projecao");
+      return {
+        rotulo: r, onClick: this.irPara(t),
+        cor: on ? "#9BFF3B" : "rgba(237,243,233,.38)",
+        borda: on ? "#9BFF3B" : "rgba(237,243,233,.22)",
+        fundo: on ? "rgba(155,255,59,.14)" : "transparent",
+        marca: on ? "#9BFF3B" : "rgba(237,243,233,.3)",
+      };
+    });
+
+    const titulos = { home: "hoje", painel: "painel do mês", historico: "histórico", compromissos: "travado", projecao: "projeção", config: "ajustes" };
+
+    // fala do Minimau
+    let estado = "escutando", fala = "Me diga um gasto em português normal — eu classifico e anoto.";
+    if (s.processando) { estado = "processando"; fala = "Interpretando o que você disse…"; }
+    else if (!saldo) { estado = "inicializando"; fala = "Carregando seus números…"; }
+    else if (fat && fat.dias_para_fechar <= 1) { estado = "alerta"; fala = `A fatura fecha ${fat.dias_para_fechar === 0 ? "hoje" : "amanhã"}. Já são ${fmt0(fat.total_ciclo)} no ciclo.`; }
+    else if (estourou) { estado = "alerta"; fala = `Você passou ${fmt(Math.abs(sobra))} do ritmo de hoje. Amanhã compensa.`; }
+    else if (gastoHoje === 0) { estado = "escutando"; fala = `Dia limpo até agora. Você tem ${fmt(sobra)} pra hoje.`; }
+    else { estado = "acompanhando"; fala = `Gastou ${fmt(gastoHoje)} hoje — ainda sobram ${fmt(sobra)} até meia-noite.`; }
+
+    const sug = s.sug;
+    const onb = { 1: { t: "Quanto entra este mês?", x: "Sem renda o saldo não significa nada. É o único passo obrigatório.", p: "R$", ph: "1700", b: "Continuar", pular: false },
+      2: { t: "Contas fixas", x: "Aluguel, internet, luz. Recorrem todo mês até você desativar.", p: "R$", ph: "99", b: "Adicionar", pular: true },
+      3: { t: "Parcelas em aberto", x: "Valor da parcela. Depois você diz qual parcela está pagando agora.", p: "R$", ph: "180", b: "Concluir", pular: true } }[s.passoOnb];
+
+    return {
+      tituloTela: titulos[s.tela],
+      rotuloCiclo: fat ? (fat.dias_para_fechar === 0 ? "fatura fecha hoje" : `fatura em ${fat.dias_para_fechar}d`) : "—",
+      corCiclo: fat && fat.dias_para_fechar <= 1 ? "#FFC24A" : "rgba(237,243,233,.45)",
+      telaHome: s.tela === "home", telaPainel: s.tela === "painel", telaHistorico: s.tela === "historico",
+      telaCompromissos: s.tela === "compromissos", telaProjecao: s.tela === "projecao", telaConfig: s.tela === "config",
+
+      estadoMinimau: estado, falaMinimau: fala,
+      corOlho: s.processando ? "#FFC24A" : estourou ? "#FF5A3C" : "#9BFF3B",
+
+      heroInt: hi, heroCent: hc, chaveSaldo: String(disp),
+      fmtRenda: saldo ? fmt0(saldo.renda_total) : "—",
+      fmtComprometido: saldo ? fmt0(saldo.comprometido_total) : "—",
+      fmtGastoLivre: saldo ? fmt0(saldo.gasto_livre) : "—",
+      fmtRitmo: saldo ? fmt(ritmo) : "—",
+      fmtGastoHoje: fmt(gastoHoje), fmtSobraHoje: saldo ? fmt(Math.abs(sobra)) : "—",
+      rotuloSobra: estourou ? "Passou hoje" : "Sobra hoje",
+      rotuloSobraCor: estourou ? "rgba(255,90,60,.8)" : "rgba(155,255,59,.75)",
+      corSobra: estourou ? "#FF5A3C" : "#9BFF3B",
+      fundoSobra: estourou ? "rgba(255,90,60,.1)" : "rgba(155,255,59,.08)",
+      larguraGastoHoje: `${pctHoje}%`,
+      legendaSobra: estourou ? "ritmo do dia estourado" : `${Math.round(pctHoje)}% do ritmo usado`,
+      diasRestantes: saldo ? saldo.dias_restantes : "—",
+      blocos, mesRotulo: rot,
+      recentes: s.gastos.slice(0, 5).map((g) => this.linha(g)),
+      semGastos: s.gastos.length === 0,
+
+      arcos, fatias, barrasDia, semanas, maiores,
+      painelTotal: p ? fmt0(p.total) : "—",
+      painelMedia: p ? fmt0(p.media_diaria) : "—",
+      painelMaiorDia: p ? `${fmt0(p.maior_dia.valor)}` : "—",
+      painelDias: p ? `${p.dias_com_gasto} de ${p.dias_no_mes} dias` : "",
+      diaHoje: diaHj, ultimoDia: p ? p.dias_no_mes : 31,
+      rotuloVariacao: varia == null ? "sem base do mês anterior" : `${subiu ? "▲" : "▼"} ${Math.abs(Math.round(varia))}% vs ${api.nomeMes(api.somaMes(s.mes, -1))}`,
+      corVariacao: varia == null ? "rgba(237,243,233,.5)" : subiu ? "#FFC24A" : "#9BFF3B",
+      fundoVariacao: varia == null ? "rgba(237,243,233,.07)" : subiu ? "rgba(255,194,74,.12)" : "rgba(155,255,59,.12)",
+
+      chips, dias, historicoVazio: dias.length === 0, busca: s.busca,
+      setBusca: (e) => this.setState({ busca: e.target.value }),
+
+      contasFixas: comp.fixas.map((c) => ({ descricao: c.descricao, dia: c.dia_vencimento, valor: fmt(c.valor) })),
+      parcelamentos,
+      resumoCompromissos: `${comp.fixas.length} contas fixas · ${comp.parcelas.length} parcelamento(s)`,
+      projecao,
+      mesAnterior: this.mudarMes(-1), mesSeguinte: this.mudarMes(1),
+      irProjecao: this.irPara("projecao"), irCompromissos: this.irPara("compromissos"),
+
+      entrada: s.entrada, setEntrada: (e) => this.setState({ entrada: e.target.value }),
+      aoTeclar: this.aoTeclar, enviar: this.enviar, ditar: this.ditar,
+      placeholderAtual: PLACEHOLDERS[s.phIdx], processando: s.processando,
+      fundoMic: s.ouvindo ? "#9BFF3B" : "transparent", corMic: s.ouvindo ? "#05080A" : "#9BFF3B",
+      erro: s.erro, mostrarErro: !!s.erro, limparErro: () => this.setState({ erro: "" }),
+
+      mostrarAviso: s.avisoAberto,
+      avisoTitulo: fat && fat.dias_para_fechar === 0 ? "A fatura fecha hoje" : "A fatura fecha amanhã",
+      avisoTexto: fat ? `Dia ${fat.dia_fechamento} · ${fmt0(fat.total_ciclo)} no ciclo · vence dia ${fat.dia_vencimento}. Ainda dá tempo de segurar o que não é essencial.` : "",
+      fecharAviso: () => this.setState({ avisoAberto: false, avisoDispensado: true }),
+
+      mostrarConfirmacao: !!s.conf,
+      confValor: s.confValor, setConfValor: (e) => this.setState({ confValor: e.target.value }),
+      confCategoria: s.confCategoria, setConfCategoria: (e) => this.setState({ confCategoria: e.target.value }),
+      confDescricao: s.conf ? s.conf.descricao : "",
+      contagemDesfazer: s.segundos > 0 ? `desfazer ${s.segundos}s` : "editando",
+      opcoesCategoria: (api ? api.LISTA_CAT : []).map((c) => ({ valor: c, rotulo: api.ROTULO_CAT[c] })),
+      desfazer: this.desfazer, confirmarEdicao: this.confirmarEdicao,
+
+      mostrarSugestao: !!sug,
+      sugestaoTexto: sug ? (sug.tipo === "parcelamento" ? `“${sug.descricao}” parece um parcelamento. Vai pesar no travado de vários meses.` : `“${sug.descricao}” parece uma conta fixa. Vai se repetir todo mês até você desativar.`) : "",
+      sugValor: s.sugValor, setSugValor: (e) => this.setState({ sugValor: e.target.value }),
+      sugCampo2: s.sugCampo2, setSugCampo2: (e) => this.setState({ sugCampo2: e.target.value }),
+      sugLegenda: sug ? (sug.tipo === "parcelamento" ? "valor da parcela · total de parcelas" : "valor · dia de vencimento") : "",
+      confirmarSugestao: this.confirmarSugestao, descartarSugestao: () => this.setState({ sug: null }),
+
+      navegacao,
+      mostrarOnboarding: s.onboardando, passo: s.passoOnb,
+      onbTitulo: onb.t, onbTexto: onb.x, onbPrefixo: onb.p, onbPlaceholder: onb.ph, onbBotao: onb.b, podePular: onb.pular,
+      onbCampo: s.onbCampo, setOnbCampo: (e) => this.setState({ onbCampo: e.target.value }),
+      avancarPasso: async () => {
+        const v = parseFloat(String(s.onbCampo).replace(",", "."));
+        if (s.passoOnb === 1) {
+          if (!v) return;
+          await api.definirRenda(v);
+          this.setState({ passoOnb: 2, onbCampo: "" });
+          this.recarregar(api, s.mes);
+        } else if (s.passoOnb === 2) {
+          if (v) await api.confirmarCompromisso("conta_fixa", { descricao: "Conta fixa", valor: v, dia_vencimento: 10, categoria: "contas" });
+          this.setState({ passoOnb: 3, onbCampo: "" });
+          this.recarregar(api, s.mes);
+        } else {
+          if (v) await api.confirmarCompromisso("parcelamento", { descricao: "Parcelamento", valor_parcela: v, total_parcelas: 12, parcela_inicial: 1, mes_inicio: s.mes, categoria: "compras" });
+          this.setState({ onboardando: false, onbCampo: "" });
+          this.recarregar(api, s.mes);
+        }
+      },
+      pularPasso: () => s.passoOnb === 2 ? this.setState({ passoOnb: 3, onbCampo: "" }) : this.setState({ onboardando: false, onbCampo: "" }),
+
+      rendaCampo: s.rendaCampo, setRendaCampo: (e) => this.setState({ rendaCampo: e.target.value }),
+      salvarRenda: async () => { const v = parseFloat(String(s.rendaCampo).replace(",", ".")); if (v) { await api.definirRenda(v); this.recarregar(); this.vibrar(12); } },
+      fechamentoCampo: s.fechamentoCampo,
+      setFechamentoCampo: async (e) => {
+        const v = e.target.value.replace(/\D/g, "").slice(0, 2);
+        this.setState({ fechamentoCampo: v });
+        const n = parseInt(v, 10);
+        if (n >= 1 && n <= 31) { await api.definirFatura({ dia_fechamento: n }); this.recarregar(); }
+      },
+      posBotaoAviso: fat && fat.notificar ? "flex-end" : "flex-start",
+      fundoBotaoAviso: fat && fat.notificar ? "#9BFF3B" : "rgba(237,243,233,.16)",
+      corPinoAviso: fat && fat.notificar ? "#05080A" : "rgba(237,243,233,.7)",
+      alternarAviso: async () => { if (!fat) return; await api.definirFatura({ notificar: !fat.notificar }); this.setState({ avisoDispensado: false, avisoAberto: false }); this.recarregar(); },
+      testarAviso: () => { this.setState({ avisoAberto: true, avisoDispensado: false, tela: "home" }); this.vibrar([10, 60, 10]); },
+
+      statusSaude: s.saude,
+      testarSaude: async () => { this.setState({ saude: "testando…" }); const h = await api.health(); this.setState({ saude: h.ok ? `online · ${h.modo} · ${h.latencia_ms}ms` : "offline" }); },
+      exportarCsv: () => {
+        const blob = new Blob([api.csv()], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = `minimau-${s.mes}.csv`; a.click();
+      },
+      refazerOnboarding: async () => { await api.limparRenda(); this.setState({ passoOnb: 1, onbCampo: "", onboardando: true }); this.recarregar(api, s.mes); },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

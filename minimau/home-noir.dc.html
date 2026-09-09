@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#0B0B0A; }
+  a { color:#D8FF3E; text-decoration:none; }
+  a:hover { color:#E9FF8A; }
+  @keyframes pulseDot { 0%,100%{opacity:.25} 50%{opacity:1} }
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;background:#0B0B0A;color:#F4F1E8;font-family:Archivo,sans-serif;display:flex;flex-direction:column">
+
+  <div style="position:absolute;inset:0;pointer-events:none;background-image:url(data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='140'%20height='140'%3E%3Cfilter%20id='n'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.85'%20numOctaves='3'/%3E%3C/filter%3E%3Crect%20width='140'%20height='140'%20filter='url(%23n)'%20opacity='0.5'/%3E%3C/svg%3E);opacity:.16;mix-blend-mode:overlay;z-index:5"></div>
+  <div style="position:absolute;top:-160px;left:-80px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(216,255,62,.13),rgba(216,255,62,0) 68%);pointer-events:none"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 22px 0;font-size:13px;font-weight:600;letter-spacing:.02em">
+    <span>9:41</span>
+    <span style="opacity:.7;font-size:11px">▮▮▮ ⌁ 87%</span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:baseline;padding:22px 22px 0">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="width:6px;height:6px;border-radius:50%;background:#D8FF3E;animation:pulseDot 2.6s infinite"></span>
+      <span style="font-size:11px;letter-spacing:.22em;text-transform:uppercase;opacity:.6">Agosto 2026</span>
+    </div>
+    <span style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;opacity:.45">Ajustes</span>
+  </div>
+
+  <div style="padding:26px 22px 0">
+    <div style="font-size:11px;letter-spacing:.24em;text-transform:uppercase;opacity:.5;margin-bottom:2px">Disponível</div>
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <span style="font-family:'Instrument Serif',serif;font-size:26px;line-height:1.9;opacity:.55">R$</span>
+      <span style="font-family:'Instrument Serif',serif;font-size:92px;line-height:.92;letter-spacing:-.02em">1.284<span style="opacity:.42">,60</span></span>
+    </div>
+  </div>
+
+  <div style="padding:22px 22px 0">
+    <div style="display:flex;gap:3px;align-items:flex-end;height:34px">
+      <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="31">
+        <div style="flex:1;border-radius:1px;background:{{ t.cor }};height:{{ t.altura }}"></div>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;letter-spacing:.14em;text-transform:uppercase">
+      <span style="opacity:.5">62% consumido</span>
+      <span style="opacity:.5">17 dias restantes</span>
+    </div>
+  </div>
+
+  <div style="margin:22px 22px 0;border:1px solid rgba(244,241,232,.14);border-radius:2px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,rgba(244,241,232,.045),rgba(244,241,232,0))">
+    <div>
+      <div style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.55">Ritmo diário</div>
+      <div style="font-size:11px;opacity:.38;margin-top:5px">seguro até 31 de agosto</div>
+    </div>
+    <div style="font-family:'Instrument Serif',serif;font-size:40px;line-height:1;color:#D8FF3E">75<span style="font-size:20px;opacity:.7">,56</span><span style="font-family:Archivo,sans-serif;font-size:11px;letter-spacing:.1em;opacity:.5">/dia</span></div>
+  </div>
+
+  <div style="flex:1;overflow:hidden;padding:26px 22px 0">
+    <div style="font-size:11px;letter-spacing:.22em;text-transform:uppercase;opacity:.45;margin-bottom:12px">Últimos</div>
+    <div style="display:flex;flex-direction:column">
+      <sc-for list="{{ gastos }}" as="g" hint-placeholder-count="4">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-top:1px solid rgba(244,241,232,.09)">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:15px">{{ g.descricao }}</span>
+            <span style="font-size:10px;letter-spacing:.16em;text-transform:uppercase;opacity:.42">{{ g.categoria }} · {{ g.quando }}</span>
+          </div>
+          <span style="font-family:'Instrument Serif',serif;font-size:23px">{{ g.valor }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="padding:14px 18px 34px;background:linear-gradient(180deg,rgba(11,11,10,0),#0B0B0A 32%);position:relative;z-index:6">
+    <div style="display:flex;align-items:center;gap:12px;border:1px solid rgba(244,241,232,.2);border-radius:999px;padding:13px 16px 13px 20px;background:rgba(244,241,232,.04)">
+      <span style="flex:1;font-size:16px;opacity:.42">gastei 32 no uber…</span>
+      <div style="width:34px;height:34px;border-radius:50%;background:#D8FF3E;display:flex;align-items:center;justify-content:center;color:#0B0B0A;font-size:15px;font-weight:700">◉</div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+  renderVals() {
+    // 31 traços = dias do mês; os consumidos ganham o acento
+    const hoje = 14, consumidos = 19;
+    const ticks = Array.from({ length: 31 }, (_, i) => ({
+      cor: i < consumidos ? (i >= hoje ? "rgba(216,255,62,.45)" : "#D8FF3E") : "rgba(244,241,232,.18)",
+      altura: i === hoje ? "34px" : i % 7 === 0 ? "22px" : "14px",
+    }));
+    const gastos = [
+      { descricao: "Almoço no Tonico", categoria: "Alimentação", quando: "hoje, 13:12", valor: "38,00" },
+      { descricao: "Uber p/ escritório", categoria: "Transporte", quando: "hoje, 08:41", valor: "21,90" },
+      { descricao: "Assinatura Spotify", categoria: "Assinaturas", quando: "ontem", valor: "34,90" },
+      { descricao: "Feira da Vila", categoria: "Compras", quando: "ontem", valor: "112,40" },
+    ];
+    return { ticks, gastos };
+  }
+}
+
+</script>
+</body>
+</html>

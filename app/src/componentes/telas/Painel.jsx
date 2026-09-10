@@ -7,7 +7,10 @@ const CIRC = 2 * Math.PI * RAIO;
 
 // Painel do mês: a rosca é o gasto livre repartido por categoria — o
 // comprometido não entra, porque não é escolha deste mês.
-export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrarCategoria, rotuloCategoria, corBarra, diaHoje }) {
+export default function Painel({
+  painel, mes, mesAnterior, aoMudarMes, aoFiltrarCategoria, aoFiltrarSemana,
+  rotuloCategoria, corBarra, diaHoje,
+}) {
   if (!painel) {
     return (
       <div style={{ padding: '28px 20px', fontFamily: MONO, fontSize: 11.5, opacity: 0.45, lineHeight: 1.7 }}>
@@ -68,7 +71,7 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
             ))}
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-            <span style={rotulo({ fontSize: 9, letterSpacing: '.2em', opacity: 0.45 })}>gasto livre</span>
+            <span style={rotulo({ fontSize: 9, letterSpacing: '.2em', opacity: 0.45 })}>eu gastei</span>
             <span style={{ fontWeight: 700, fontSize: 29, lineHeight: 1 }}>{fmt0(painel.total)}</span>
             <span style={meta({ fontSize: 9.5 })}>{painel.dias_com_gasto} de {painel.dias_no_ciclo} dias</span>
           </div>
@@ -79,7 +82,9 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
             <div style={{ fontWeight: 700, fontSize: 22, lineHeight: 1.15 }}>{fmt0(painel.media_diaria)}</div>
           </div>
           <div>
-            <div style={rotulo({ fontSize: 9, letterSpacing: '.18em', opacity: 0.45 })}>Maior dia</div>
+            <div style={rotulo({ fontSize: 9, letterSpacing: '.18em', opacity: 0.45 })}>
+              Maior dia{painel.maior_dia.valor > 0 ? ` · ${String(painel.maior_dia.dia).padStart(2, '0')}` : ''}
+            </div>
             <div style={{ fontWeight: 700, fontSize: 22, lineHeight: 1.15 }}>{fmt0(painel.maior_dia.valor)}</div>
           </div>
           <div style={{
@@ -97,10 +102,17 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
         </div>
       </div>
 
+      {/* Sem esta linha o número da rosca fica sem referência: ele é menor que
+          a fatura, e a diferença é justamente o que já estava travado. */}
+      <div style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.7, opacity: 0.42, margin: '12px 4px 0' }}>
+        Soma do que você lançou entre {dataCurta(painel.inicio_ciclo)} e {dataCurta(painel.fim_ciclo)}.
+        Contas fixas e parcelas não entram aqui — elas ficam no Travado.
+      </div>
+
       {/* Por categoria — barras-régua, tocáveis: levam ao histórico filtrado. */}
       <div style={rotulo({ margin: '24px 4px 10px' })}>Por categoria</div>
       {painel.por_categoria.length === 0 && (
-        <div style={{ padding: '18px 4px', fontFamily: MONO, fontSize: 11.5, opacity: 0.45 }}>Nenhum gasto livre neste ciclo.</div>
+        <div style={{ padding: '18px 4px', fontFamily: MONO, fontSize: 11.5, opacity: 0.45 }}>Nada lançado neste ciclo ainda.</div>
       )}
       {painel.por_categoria.map((c) => (
         <button
@@ -147,10 +159,16 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
           que a semana começa no dia seguinte ao fechamento da fatura. */}
       <div style={rotulo({ margin: '26px 4px 4px' })}>Por semana do ciclo</div>
       <div style={{ fontFamily: MONO, fontSize: 9.5, lineHeight: 1.7, opacity: 0.4, margin: '0 4px 12px' }}>
-        Blocos de 7 dias corridos a partir da abertura do ciclo — não são semanas do calendário.
+        Blocos de 7 dias corridos a partir da abertura do ciclo — não são semanas
+        do calendário. Toque numa semana para ver de onde saiu o valor.
       </div>
       {painel.por_semana.map((s) => (
-        <div key={s.inicio || s.rotulo} style={{ padding: '10px 4px', borderBottom: `1px solid ${cor.trilho}` }}>
+        <button
+          key={s.inicio || s.rotulo}
+          type="button"
+          onClick={() => aoFiltrarSemana(s)}
+          style={{ display: 'block', width: '100%', minHeight: 44, padding: '10px 4px', borderBottom: `1px solid ${cor.trilho}` }}
+        >
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, marginBottom: 7 }}>
             <span style={{
               fontFamily: MONO, fontSize: 10.5, letterSpacing: '.06em', flex: 1, textAlign: 'left',
@@ -165,6 +183,7 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
               </span>
             )}
             <span style={{ fontWeight: 700, fontSize: 17, lineHeight: 1 }}>{fmt0(s.valor)}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, opacity: 0.35 }}>›</span>
           </div>
           <div style={{ height: 5, borderRadius: 3, background: cor.trilho, overflow: 'hidden' }}>
             <div style={{
@@ -173,7 +192,7 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
             }}
             />
           </div>
-        </div>
+        </button>
       ))}
 
       {/* Maiores gastos */}

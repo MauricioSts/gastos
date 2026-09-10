@@ -95,7 +95,7 @@ export default function Home({
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: cor.fosforo }} />
-            gasto livre
+            eu gastei
           </span>
           <span>{saldo ? saldo.dias_restantes : '—'}d restantes</span>
         </div>

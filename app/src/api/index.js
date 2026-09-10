@@ -613,6 +613,8 @@ function marcaSemanaAtual(semanas) {
 function normalizaPainel(d) {
   return {
     total: d.total,
+    inicio_ciclo: d.ciclo.inicio,
+    fim_ciclo: d.ciclo.fim,
     media_diaria: d.media_diaria,
     maior_dia: d.maior_dia,
     dias_com_gasto: d.dias_com_gasto,
@@ -667,6 +669,8 @@ export async function getPainel(mes = hoje.mes) {
 
   return {
     total,
+    inicio_ciclo: janela.inicio,
+    fim_ciclo: janela.fim,
     media_diaria: comGasto.length ? total / comGasto.length : 0,
     maior_dia: { dia: maior.dia, valor: maior.valor },
     dias_com_gasto: comGasto.length,

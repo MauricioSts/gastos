@@ -574,9 +574,9 @@ export const LISTA_CAT = Object.keys(ROTULO_CAT);
 // ---------------------------------------------------------------------------
 // Painel do mês
 // ---------------------------------------------------------------------------
-// O backend não tem rota de dashboard: o painel é derivado aqui, a partir dos
-// gastos do ciclo (e do ciclo anterior, só para a variação). Fica nesta camada
-// pelo mesmo motivo que as traduções: nenhuma tela faz conta de agregação.
+// Com backend o painel vem pronto de `GET /api/dashboard`. No mock ele é
+// derivado aqui, a partir dos gastos do ciclo (e do ciclo anterior, só para a
+// variação): nenhuma tela faz conta de agregação.
 
 // Todos os dias do ciclo, do início ao fim, como YYYY-MM-DD.
 function diasDoCiclo(ciclo) {
@@ -590,6 +590,13 @@ function diasDoCiclo(ciclo) {
   return dias;
 }
 
+// Marca a semana do ciclo que contém hoje: sem isso as cinco faixas de datas
+// parecem todas igualmente relevantes.
+function marcaSemanaAtual(semanas) {
+  const h = hojeLocal();
+  return (semanas || []).map((s) => ({ ...s, atual: s.inicio <= h && h <= s.fim }));
+}
+
 // Tradução do dashboard do backend para os nomes que as telas usam.
 function normalizaPainel(d) {
   return {
@@ -600,7 +607,7 @@ function normalizaPainel(d) {
     dias_no_ciclo: d.dias_no_ciclo,
     por_categoria: d.por_categoria,
     por_dia: d.dia_a_dia,
-    por_semana: d.semanas,
+    por_semana: marcaSemanaAtual(d.semanas),
     top: d.maiores,
     variacao: d.comparativo.variacao,
     mes_anterior: d.comparativo.mes_anterior,
@@ -633,9 +640,12 @@ export async function getPainel(mes = hoje.mes) {
   // Semanas de 7 dias corridos dentro da janela, não semanas do calendário.
   const porSemana = [];
   for (let i = 0; i < porDia.length; i += 7) {
+    const faixa = porDia.slice(i, i + 7);
     porSemana.push({
       rotulo: `S${porSemana.length + 1}`,
-      valor: porDia.slice(i, i + 7).reduce((s, d) => s + d.valor, 0),
+      inicio: faixa[0].data,
+      fim: faixa[faixa.length - 1].data,
+      valor: faixa.reduce((s, d) => s + d.valor, 0),
     });
   }
 
@@ -657,7 +667,7 @@ export async function getPainel(mes = hoje.mes) {
       }))
       .sort((a, b) => b.valor - a.valor),
     por_dia: porDia,
-    por_semana: porSemana,
+    por_semana: marcaSemanaAtual(porSemana),
     top: [...gastos].sort((a, b) => b.valor - a.valor).slice(0, 3),
     // Sem base no ciclo anterior a comparação seria ruído, então some.
     variacao: totalAnterior > 0 ? ((total - totalAnterior) / totalAnterior) * 100 : null,

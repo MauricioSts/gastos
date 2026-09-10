@@ -1,6 +1,6 @@
 import { cor, MONO, rotulo, meta } from '../../tema';
 import { fmt0 } from '../../utils/formato';
-import { nomeMes } from '../../api';
+import { nomeMes, dataCurta } from '../../api';
 
 const RAIO = 58;
 const CIRC = 2 * Math.PI * RAIO;
@@ -143,21 +143,38 @@ export default function Painel({ painel, mes, mesAnterior, aoMudarMes, aoFiltrar
         <span>{painel.por_dia.length ? String(painel.por_dia[painel.por_dia.length - 1].dia).padStart(2, '0') : '—'}</span>
       </div>
 
-      {/* Semanas corridas do ciclo */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-        {painel.por_semana.map((s) => (
-          <div
-            key={s.rotulo}
-            style={{
-              flex: 1, border: `1px solid ${cor.divisorForte}`, borderRadius: 14, padding: '10px 10px 11px',
-              background: s.valor === maiorSemana && s.valor > 0 ? 'rgba(155,255,59,.12)' : 'transparent',
-            }}
-          >
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '.16em', opacity: 0.45 }}>{s.rotulo}</div>
-            <div style={{ fontWeight: 700, fontSize: 17, lineHeight: 1.2, marginTop: 4 }}>{fmt0(s.valor)}</div>
-          </div>
-        ))}
+      {/* Semanas corridas do ciclo. O rótulo é a data: "S1" não diz a ninguém
+          que a semana começa no dia seguinte ao fechamento da fatura. */}
+      <div style={rotulo({ margin: '26px 4px 4px' })}>Por semana do ciclo</div>
+      <div style={{ fontFamily: MONO, fontSize: 9.5, lineHeight: 1.7, opacity: 0.4, margin: '0 4px 12px' }}>
+        Blocos de 7 dias corridos a partir da abertura do ciclo — não são semanas do calendário.
       </div>
+      {painel.por_semana.map((s) => (
+        <div key={s.inicio || s.rotulo} style={{ padding: '10px 4px', borderBottom: `1px solid ${cor.trilho}` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, marginBottom: 7 }}>
+            <span style={{
+              fontFamily: MONO, fontSize: 10.5, letterSpacing: '.06em', flex: 1, textAlign: 'left',
+              color: s.atual ? cor.fosforo : 'inherit', opacity: s.atual ? 1 : 0.75,
+            }}
+            >
+              {dataCurta(s.inicio)} a {dataCurta(s.fim)}
+            </span>
+            {s.atual && (
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: cor.fosforo }}>
+                em curso
+              </span>
+            )}
+            <span style={{ fontWeight: 700, fontSize: 17, lineHeight: 1 }}>{fmt0(s.valor)}</span>
+          </div>
+          <div style={{ height: 5, borderRadius: 3, background: cor.trilho, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 3, width: `${(s.valor / maiorSemana) * 100}%`,
+              background: s.valor === maiorSemana && s.valor > 0 ? cor.fosforoClaro : cor.fosforo,
+            }}
+            />
+          </div>
+        </div>
+      ))}
 
       {/* Maiores gastos */}
       <div style={rotulo({ margin: '26px 4px 6px' })}>Maiores gastos</div>

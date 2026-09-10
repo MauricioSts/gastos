@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import FormularioCompromisso from '../FormularioCompromisso';
+import Mascote from '../Mascote';
 import { fmt, leValor } from '../../utils/formato';
 import { nomeMes, dataCurta } from '../../api';
+import { cor, MONO, SANS } from '../../tema';
 
-// Tela cheia invertida. Aparece sempre que renda_definida === false: sem renda
-// o saldo não significa nada.
+// Tela cheia sobre gradiente escuro. Aparece sempre que renda_definida ===
+// false: sem renda o saldo não significa nada.
 //
 // Os passos 2 e 3 cadastram compromissos de verdade — descrição, valor,
 // vencimento, categoria e, no parcelamento, em que parcela você já está.
-// Chutar esses campos faria o comprometido dos próximos meses nascer errado.
+// Chutar esses campos faria o travado dos próximos meses nascer errado.
 export default function Onboarding({
   mes, ciclo, compromissos, aoDefinirRenda, aoAdicionarCompromisso, aoRemoverCompromisso, aoConcluir,
 }) {
@@ -41,19 +43,52 @@ export default function Onboarding({
     setFormAberto(false);
   };
 
-  const conteudo = () => {
-    // ---- Passo 1: renda, campo único com underline ----
-    if (passo === 1) {
-      return (
-        <>
-          <div className="font-valor font-extrabold text-[56px] leading-[.92] mt-4 max-w-[280px]">
-            Quanto entra este mês?
+  const titulo = { 1: 'Quanto entra este mês?', 2: 'Contas fixas', 3: 'Parcelas em aberto' }[passo];
+  const texto = {
+    1: 'Sem renda o saldo não significa nada. É o único passo obrigatório.',
+    2: 'Aluguel, internet, luz. Recorrem todo mês até você desativar, e saem da renda antes de você gastar qualquer coisa.',
+    3: 'Compras que você ainda está pagando. Diga em que parcela está agora — assim o Minimau sabe quando cada uma acaba.',
+  }[passo];
+
+  const botao = (extra = {}) => ({
+    borderRadius: 16, padding: 16, textAlign: 'center', fontFamily: MONO, fontSize: 10.5,
+    letterSpacing: '.16em', textTransform: 'uppercase', minHeight: 44, ...extra,
+  });
+
+  return (
+    <div
+      className="rolagem"
+      style={{
+        position: 'absolute', inset: 0, zIndex: 38, display: 'flex', flexDirection: 'column',
+        boxSizing: 'border-box', padding: '0 26px', overflowY: 'auto',
+        background: 'radial-gradient(120% 70% at 50% 0%,#101A0E 0%,#04070A 55%)',
+        paddingTop: 'max(64px, calc(env(safe-area-inset-top) + 40px))',
+        paddingBottom: 'max(44px, calc(env(safe-area-inset-bottom) + 20px))',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 'none' }}>
+        <Mascote corOlho={cor.fosforoClaro} largura={86} />
+        <div>
+          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.24em', textTransform: 'uppercase', color: cor.fosforo }}>
+            Minimau online
           </div>
-          <div className="font-mono text-[12px] leading-[1.65] opacity-65 mt-[14px] max-w-[300px]">
-            Sem renda, o saldo não significa nada. É o único passo obrigatório.
+          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.2em', textTransform: 'uppercase', opacity: 0.4, marginTop: 4 }}>
+            passo {passo} de 3
           </div>
-          <div className="mt-[34px] flex items-center gap-[10px] border-b-2 border-tinta-clara pb-[6px]">
-            <span className="font-mono text-[16px] opacity-55">R$</span>
+        </div>
+      </div>
+
+      <div style={{ fontWeight: 700, fontSize: 46, lineHeight: 1, marginTop: 26, maxWidth: 290, textWrap: 'pretty', flex: 'none' }}>
+        {titulo}
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 11.5, lineHeight: 1.7, opacity: 0.55, marginTop: 14, maxWidth: 300, flex: 'none' }}>
+        {texto}
+      </div>
+
+      {passo === 1 ? (
+        <div style={{ flex: 'none' }}>
+          <div style={{ marginTop: 32, display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid rgba(155,255,59,.4)`, paddingBottom: 8 }}>
+            <span style={{ fontFamily: MONO, fontSize: 16, opacity: 0.45 }}>R$</span>
             <input
               value={renda}
               onChange={(e) => setRenda(e.target.value)}
@@ -61,134 +96,93 @@ export default function Onboarding({
               placeholder="1700"
               aria-label="Quanto entra este mês?"
               autoFocus
-              className="flex-1 w-full border-none bg-transparent outline-none font-valor font-extrabold text-[52px] text-tinta-clara p-0 placeholder:opacity-40"
+              style={{
+                flex: 1, width: '100%', border: 'none', background: 'transparent', outline: 'none',
+                fontFamily: SANS, fontWeight: 700, fontSize: 48, color: cor.tinta, padding: 0,
+              }}
             />
           </div>
-          <div className="font-mono text-[10px] opacity-45 mt-3 leading-[1.6]">
+          <div style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.42, marginTop: 12, lineHeight: 1.7 }}>
             {ciclo
               ? `É o salário que cai em ${dataCurta(ciclo.data_recebimento)} e banca o ciclo de ${dataCurta(ciclo.inicio)} a ${dataCurta(ciclo.fim)}.`
               : `É o salário de ${nomeMes(mes)}.`}{' '}
             Um pix que cair depois você lança pelo chat.
           </div>
-        </>
-      );
-    }
-
-    // ---- Passos 2 e 3: lista + formulário ----
-    const titulo = passo === 2 ? 'Contas fixas' : 'Parcelas em aberto';
-    const texto = passo === 2
-      ? 'Aluguel, internet, luz. Recorrem todo mês até você desativar, e saem da renda antes de você gastar qualquer coisa.'
-      : 'Compras que você ainda está pagando. Diga em que parcela está agora — assim o app sabe quando cada uma acaba.';
-
-    return (
-      <>
-        <div className="font-valor font-extrabold text-[56px] leading-[.92] mt-4 max-w-[280px]">
-          {titulo}
         </div>
-        <div className="font-mono text-[12px] leading-[1.65] opacity-65 mt-[14px] max-w-[300px]">
-          {texto}
-        </div>
-
-        {itens.length > 0 && (
-          <div className="mt-6 border-t border-[rgba(246,241,228,.25)]">
-            {itens.map((item) => (
-              <div
-                key={item.id}
-                className="flex justify-between items-center gap-3 py-[11px] border-b border-[rgba(246,241,228,.25)] min-h-[44px]"
-              >
-                <div className="flex flex-col gap-[3px] min-w-0">
-                  <span className="font-sans text-[15px] font-medium truncate">{item.descricao}</span>
-                  <span className="font-mono text-[10px] tracking-[.12em] uppercase opacity-50">
-                    {passo === 2
-                      ? `vence dia ${item.dia_vencimento}`
-                      : `${item.parcela_atual} de ${item.total_parcelas}`}
-                  </span>
+      ) : (
+        <div style={{ flex: 'none' }}>
+          {itens.length > 0 && (
+            <div style={{ marginTop: 24, borderTop: `1px solid ${cor.divisorForte}` }}>
+              {itens.map((item) => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: `1px solid ${cor.divisorForte}`, minHeight: 44 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                    <span style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.descricao}</span>
+                    <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase', opacity: 0.42 }}>
+                      {passo === 2 ? `vence dia ${item.dia_vencimento}` : `${item.parcela_atual} de ${item.total_parcelas}`}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 'none' }}>
+                    <span style={{ fontWeight: 700, fontSize: 24, lineHeight: 1 }}>
+                      {fmt(passo === 2 ? item.valor : item.valor_parcela)}
+                    </span>
+                    <button type="button" onClick={() => aoRemoverCompromisso(tipo, item.id)} aria-label={`Remover ${item.descricao}`} style={{ opacity: 0.5, padding: '0 6px', minHeight: 44, fontSize: 14 }}>
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 flex-none">
-                  <span className="font-valor font-bold text-[26px] leading-none">
-                    {fmt(passo === 2 ? item.valor : item.valor_parcela)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => aoRemoverCompromisso(tipo, item.id)}
-                    aria-label={`Remover ${item.descricao}`}
-                    className="opacity-55 px-2 min-h-[44px] text-[15px]"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-5">
-          {formAberto ? (
-            <FormularioCompromisso
-              tipo={tipo}
-              invertido
-              mes={mes}
-              aoSalvar={adicionar}
-              aoCancelar={() => setFormAberto(false)}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setFormAberto(true)}
-              className="w-full border-2 border-[rgba(246,241,228,.4)] px-[14px] py-[13px] min-h-[44px] flex justify-between items-center font-mono text-[11px] tracking-[.14em] uppercase"
-            >
-              <span>{itens.length ? 'Adicionar outra' : `Adicionar ${passo === 2 ? 'conta fixa' : 'parcelamento'}`}</span>
-              <span className="text-carimbo">+</span>
-            </button>
+              ))}
+            </div>
           )}
+
+          <div style={{ marginTop: 20 }}>
+            {formAberto ? (
+              <FormularioCompromisso tipo={tipo} mes={mes} aoSalvar={adicionar} aoCancelar={() => setFormAberto(false)} />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setFormAberto(true)}
+                style={{
+                  width: '100%', border: `1px dashed rgba(155,255,59,.3)`, borderRadius: 14,
+                  padding: '13px 15px', minHeight: 44, display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase',
+                }}
+              >
+                <span style={{ opacity: 0.75 }}>
+                  {itens.length ? 'Adicionar outra' : `Adicionar ${passo === 2 ? 'conta fixa' : 'parcelamento'}`}
+                </span>
+                <span style={{ color: cor.fosforo }}>+</span>
+              </button>
+            )}
+          </div>
         </div>
-      </>
-    );
-  };
-
-  return (
-    <div
-      className="rolagem absolute inset-0 z-[38] bg-tinta text-tinta-clara flex flex-col box-border px-[26px] overflow-y-auto"
-      style={{
-        paddingTop: 'max(70px, calc(env(safe-area-inset-top) + 46px))',
-        paddingBottom: 'max(44px, calc(env(safe-area-inset-bottom) + 20px))',
-      }}
-    >
-      <div className="font-mono text-[10px] tracking-[.24em] uppercase opacity-50 flex-none">
-        Folha nova · passo {passo} de 3
-      </div>
-
-      <div className="flex-none">{conteudo()}</div>
+      )}
 
       {aviso && (
-        <div className="font-mono text-[11px] leading-[1.5] flex gap-2 mt-4 text-carimbo flex-none">
+        <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.55, display: 'flex', gap: 8, marginTop: 16, color: cor.alerta, flex: 'none' }}>
           <span>≠</span>
           <span>{aviso}</span>
         </div>
       )}
 
-      <div className="flex-1 min-h-[28px]" />
+      <div style={{ flex: 1, minHeight: 28 }} />
 
       {/* Enquanto o formulário está aberto ele já tem os próprios botões. */}
       {!formAberto && (
-        <div className="flex gap-[10px] flex-none">
+        <div style={{ display: 'flex', gap: 10, flex: 'none' }}>
           {passo > 1 && (
             <button
               type="button"
               onClick={() => (passo === 2 ? irPara(3) : aoConcluir())}
-              className="flex-1 border-2 border-[rgba(246,241,228,.4)] p-[15px] text-center font-mono text-[11px] tracking-[.16em] uppercase min-h-[44px]"
+              style={botao({ flex: 1, border: `1px solid rgba(237,243,233,.25)` })}
             >
               Pular
             </button>
           )}
           <button
             type="button"
-            onClick={() => {
-              if (passo === 1) return salvarRenda();
-              return passo === 2 ? irPara(3) : aoConcluir();
-            }}
+            onClick={() => (passo === 1 ? salvarRenda() : passo === 2 ? irPara(3) : aoConcluir())}
             disabled={salvando}
-            className="flex-[2] bg-carimbo text-tinta-clara p-[15px] text-center font-mono text-[11px] tracking-[.16em] uppercase min-h-[44px] disabled:opacity-60"
+            style={botao({ flex: 2, background: cor.fosforo, color: cor.fundo, fontWeight: 600, opacity: salvando ? 0.6 : 1 })}
           >
             {salvando ? 'Salvando…' : passo === 3 ? 'Começar a usar' : 'Continuar'}
           </button>

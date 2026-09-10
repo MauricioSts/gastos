@@ -1,10 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* ------------------------------------------------------------------ */
-/* Base                                                                */
-/* ------------------------------------------------------------------ */
+/* Minimau — terminal industrial.
+   Painel escuro com fósforo verde. Sem framework de CSS: os estilos de
+   componente moram junto do JSX; aqui ficam só a base, a rolagem do iOS e as
+   animações, que precisam ser globais para o SVG do mascote enxergar. */
 
 html,
 body,
@@ -14,11 +11,11 @@ body,
 
 body {
   margin: 0;
-  background: #e8e2d4;
-  color: #16130d;
-  font-family: 'IBM Plex Sans', sans-serif;
+  background: #05080a;
+  color: #edf3e9;
+  font-family: 'Chakra Petch', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Impede o "rubber band" da pagina inteira no iOS. */
+  /* Impede o "rubber band" da página inteira no iOS. */
   overscroll-behavior: none;
 }
 
@@ -36,10 +33,8 @@ button {
 select {
   -webkit-appearance: none;
   appearance: none;
-  border-radius: 0;
 }
 
-/* Remove as setinhas de input number no iOS/Android. */
 input[type='number']::-webkit-outer-spin-button,
 input[type='number']::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -51,12 +46,15 @@ input[type='number']::-webkit-inner-spin-button {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ------------------------------------------------------------------ */
-/* Utilitários do vocabulário visual                                   */
-/* ------------------------------------------------------------------ */
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
 
-/* Rolagem com inércia do iOS, sem barra visível e sem vazar scroll
-   para o elemento pai. */
+/* Rolagem com inércia do iOS, sem barra visível e sem vazar para o pai. */
 .rolagem {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -66,20 +64,165 @@ input[type='number']::-webkit-inner-spin-button {
   display: none;
 }
 
-/* Hachura diagonal = comprometido/travado. Sólido tinta = gasto livre.
-   Vazio = disponível. Esse par se repete na régua da Home, nas barras do
-   Resumo e nas colunas da Projeção. */
-.hachura {
-  background-image: repeating-linear-gradient(45deg, #16130d 0 2px, transparent 2px 4px);
+/* Scanline: sem ela o app perde a leitura de terminal. */
+.scanline {
+  background-image: linear-gradient(rgba(155, 255, 59, 0.045) 1px, transparent 1px);
+  background-size: 100% 3px;
 }
 
 /* Barra de processamento: tracejado que corre, nunca spinner. */
-.correndo {
-  background-image: repeating-linear-gradient(90deg, #d2360a 0 12px, transparent 12px 22px);
-  background-size: 44px 100%;
+.esteira {
+  background-image: repeating-linear-gradient(90deg, #9bff3b 0 12px, transparent 12px 18px);
+  background-size: 36px 100%;
+  animation: esteira 0.6s linear infinite;
 }
 
-/* Ruído de papel. Sem ele o app fica plano e perde a leitura de impresso. */
-.ruido {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.3'/%3E%3C/svg%3E");
+/* ------------------------------------------------------------------ */
+/* Animações de interface                                              */
+/* ------------------------------------------------------------------ */
+
+@keyframes subirValor {
+  0% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes descer {
+  0% { transform: translateY(-130%); opacity: 0; }
+  70% { transform: translateY(4px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes emergir {
+  0% { transform: translateY(22px) scale(0.97); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes esteira {
+  0% { background-position: 0 0; }
+  100% { background-position: 36px 0; }
+}
+@keyframes respirar {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mascote (mm*) e logo (ml*)                                          */
+/* ------------------------------------------------------------------ */
+
+@keyframes mmFlutuar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+@keyframes mmSombra {
+  0%, 100% { transform: scale(1); opacity: 0.14; }
+  50% { transform: scale(0.94); opacity: 0.1; }
+}
+@keyframes mmCabeca {
+  0%, 100% { transform: rotate(0deg); }
+  28% { transform: rotate(-3deg); }
+  63% { transform: rotate(2.4deg); }
+  80% { transform: rotate(-1deg); }
+}
+@keyframes mmAcenoBraco {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50% { transform: rotate(2.5deg); }
+}
+@keyframes mmAcenoMao {
+  0%, 100% { transform: rotate(-17deg); }
+  50% { transform: rotate(17deg); }
+}
+@keyframes mmBracoEsq {
+  0%, 44% { transform: rotate(0deg); }
+  58% { transform: rotate(-12deg); }
+  70% { transform: rotate(8deg); }
+  84% { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes mmDedo {
+  0%, 46% { transform: rotate(0deg); }
+  60% { transform: rotate(-7deg); }
+  74% { transform: rotate(4deg); }
+  88%, 100% { transform: rotate(0deg); }
+}
+@keyframes mmIris {
+  0%, 100% { transform: scale(1); }
+  34% { transform: scale(0.84); }
+  62% { transform: scale(1.06); }
+}
+@keyframes mmLenteGira {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes mmCircuito {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -44; }
+}
+@keyframes mmPulso {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes mmEngrenagem {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes mmBrilhoM {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 1; }
+}
+/* Piscadinha dupla: duas pálpebras deslizando para o centro em ~88% e ~95%. */
+@keyframes mmLidTopo {
+  0%, 85%, 100% { transform: translateY(0); }
+  88%, 89.4% { transform: translateY(50px); }
+  92% { transform: translateY(0); }
+  94.4%, 95.4% { transform: translateY(50px); }
+  98% { transform: translateY(0); }
+}
+@keyframes mmLidBase {
+  0%, 85%, 100% { transform: translateY(0); }
+  88%, 89.4% { transform: translateY(-50px); }
+  92% { transform: translateY(0); }
+  94.4%, 95.4% { transform: translateY(-50px); }
+  98% { transform: translateY(0); }
+}
+@keyframes mmVarredura {
+  0%, 100% { transform: translateY(-16px); opacity: 0; }
+  40% { opacity: 0.5; }
+  60% { opacity: 0.5; }
+  90% { transform: translateY(16px); opacity: 0; }
+}
+
+@keyframes mlIris {
+  0%, 100% { transform: scale(1); }
+  34% { transform: scale(0.86); }
+  62% { transform: scale(1.05); }
+}
+@keyframes mlGira {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes mlPulso {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes mlLidTopo {
+  0%, 84%, 100% { transform: translateY(0); }
+  87%, 88.4% { transform: translateY(52px); }
+  91% { transform: translateY(0); }
+  93.6%, 94.6% { transform: translateY(52px); }
+  97% { transform: translateY(0); }
+}
+@keyframes mlLidBase {
+  0%, 84%, 100% { transform: translateY(0); }
+  87%, 88.4% { transform: translateY(-52px); }
+  91% { transform: translateY(0); }
+  93.6%, 94.6% { transform: translateY(-52px); }
+  97% { transform: translateY(0); }
+}
+
+/* Quem pediu menos movimento no sistema recebe o painel parado. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

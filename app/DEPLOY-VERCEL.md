@@ -1,4 +1,4 @@
-# Publicar o Folha na Vercel
+# Publicar o Minimau na Vercel
 
 O frontend é estático: a Vercel só serve os arquivos gerados por `npm run build`.
 Quem faz o trabalho pesado (LLM, banco) é a `gastos-api`, que continua na sua VM.

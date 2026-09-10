@@ -1,135 +1,171 @@
+import Mascote from '../Mascote';
 import LinhaLancamento from '../LinhaLancamento';
+import { cor, MONO, cardAlto, rotulo, meta } from '../../tema';
 import { fmt, fmt0 } from '../../utils/formato';
-import { MESES, dataCurta } from '../../api';
 
-// Régua do mês: 24 blocos. Os primeiros N hachurados (comprometido), os
-// seguintes M sólidos (gasto livre), o resto vazio (disponível).
-function Regua({ saldo }) {
-  const blocos = [];
-  if (saldo && saldo.renda_total) {
-    const nc = Math.round((saldo.comprometido_total / saldo.renda_total) * 24);
-    const nl = Math.round((saldo.gasto_livre / saldo.renda_total) * 24);
-    for (let i = 0; i < 24; i += 1) {
-      blocos.push(i < nc ? 'hachura' : i < nc + nl ? 'solido' : 'vazio');
-    }
-  }
-
-  return (
-    <div className="px-5 pt-4">
-      <div className="flex h-[18px] border-2 border-tinta">
-        {blocos.map((tipo, i) => (
-          <div
-            key={i}
-            className={`flex-1 border-r border-[rgba(22,19,13,.2)] ${tipo === 'hachura' ? 'hachura' : ''}`}
-            style={{ background: tipo === 'solido' ? '#16130D' : undefined }}
-          />
-        ))}
-      </div>
-      <div className="flex justify-between mt-2 font-mono text-[10.5px] tracking-[.1em] uppercase">
-        <span className="flex items-center gap-[6px]">
-          <span className="w-[11px] h-[11px] border border-tinta hachura" />
-          comprometido
-        </span>
-        <span className="flex items-center gap-[6px]">
-          <span className="w-[11px] h-[11px] bg-tinta" />
-          gasto livre
-        </span>
-        <span className="opacity-55">{saldo ? saldo.dias_restantes : '—'}d restantes</span>
-      </div>
-    </div>
-  );
+// Régua do mês: 24 blocos. Travado em verde escuro, gasto livre em fósforo,
+// o que sobra fica vazio. É a única leitura do mês inteiro que cabe numa linha.
+function blocosDoMes(saldo) {
+  if (!saldo || !saldo.renda_total) return [];
+  const travados = Math.round((saldo.comprometido_total / saldo.renda_total) * 24);
+  const livres = Math.round((saldo.gasto_livre / saldo.renda_total) * 24);
+  return Array.from({ length: 24 }, (_, i) => {
+    if (i < travados) return { fundo: 'rgba(155,255,59,.28)', borda: 'rgba(155,255,59,.5)' };
+    if (i < travados + livres) return { fundo: cor.fosforo, borda: cor.fosforo };
+    return { fundo: 'transparent', borda: 'rgba(237,243,233,.14)' };
+  });
 }
 
-export default function Home({ saldo, gastos, mes, quando, aoEditar, aoExcluir }) {
+export default function Home({
+  saldo, gastos, gastoHoje, sobraHoje, estado, fala, corOlho,
+  quando, rotuloCategoria, corBarra, aoEditar, aoExcluir,
+}) {
   const disponivel = saldo ? saldo.disponivel : null;
-  const [inteiro, centavos] = (disponivel == null ? '—,—' : fmt(disponivel)).split(',');
-  const ultimoDia = new Date(Date.UTC(Number(mes.split('-')[0]), Number(mes.split('-')[1]), 0)).getUTCDate();
-  // Janela real do ciclo da fatura, quando o backend informa. O mês do
-  // calendário é só o rótulo: quem fecha a conta é o dia do fechamento.
-  const ciclo = saldo ? saldo.ciclo : null;
+  const [inteiro, centavos] = fmt(disponivel).split(',');
+  const estourou = sobraHoje < 0;
+  const ritmo = saldo ? saldo.ritmo_diario : 0;
+  const pctHoje = ritmo > 0 ? Math.min(100, (gastoHoje / ritmo) * 100) : 0;
+  const recentes = gastos.slice(0, 5);
 
   return (
-    <div className="pb-2">
-      <div className="px-5 pt-[18px]">
-        <div className="font-mono text-[11px] tracking-[.2em] uppercase opacity-60">
-          Disponível de fato
+    <div style={{ padding: '0 0 8px' }}>
+      {/* 1. O Minimau fala pelo estado do mês, nunca por texto fixo. */}
+      <div
+        style={{
+          margin: '16px 16px 0', position: 'relative', border: `1px solid ${cor.linha}`,
+          borderRadius: 22, background: cardAlto, padding: '16px 16px 16px 12px',
+          display: 'flex', gap: 12, alignItems: 'center', overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: 60,
+          background: 'radial-gradient(closest-side,rgba(155,255,59,.16),transparent)',
+        }}
+        />
+        <Mascote corOlho={corOlho} largura={104} style={{ flex: 'none', margin: '-10px -6px -14px -6px', pointerEvents: 'none' }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.22em', textTransform: 'uppercase', color: cor.fosforo, opacity: 0.8 }}>
+            {estado}
+          </div>
+          <div style={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.35, marginTop: 6, textWrap: 'pretty' }}>{fala}</div>
         </div>
+      </div>
 
-        {/* key força o remount a cada mudança de valor: o número re-anima. */}
+      {/* 2. O número herói é o disponível de fato — nunca a renda bruta. */}
+      <div style={{ padding: '22px 20px 0' }}>
+        <div style={rotulo({ fontSize: 10, letterSpacing: '.24em', opacity: 0.45 })}>Disponível de fato</div>
         <div
           key={String(disponivel)}
-          className="flex items-end gap-[6px] -mt-[2px] animate-subirValor"
+          style={{ display: 'flex', alignItems: 'flex-end', gap: 7, marginTop: 2, animation: 'subirValor .5s cubic-bezier(.2,.9,.25,1)' }}
         >
-          <span className="font-mono text-[17px] font-semibold pb-[15px]">R$</span>
-          <span className="font-valor font-extrabold text-[104px] leading-[.82] tracking-[-.01em]">
+          <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 600, paddingBottom: 14, opacity: 0.5 }}>R$</span>
+          <span style={{ fontWeight: 700, fontSize: 82, lineHeight: 0.86, letterSpacing: '-.02em' }}>
             {inteiro}
-            {/* Os centavos do herói são a única coisa impressa em carimbo aqui. */}
-            <span className="text-carimbo">,{centavos}</span>
+            <span style={{ color: cor.fosforo }}>,{centavos}</span>
           </span>
         </div>
-
-        {/* Decomposição sempre visível: sem ela o número não se explica. */}
-        <div className="font-mono text-[11.5px] tracking-[.02em] mt-[10px] flex flex-wrap gap-[6px] items-baseline">
-          <span className="opacity-55">Renda</span>
-          <span className="font-semibold">{saldo ? fmt0(saldo.renda_total) : '—'}</span>
-          <span className="opacity-40">−</span>
-          <span className="opacity-55">Comprometido</span>
-          <span className="font-semibold text-carimbo">{saldo ? fmt0(saldo.comprometido_total) : '—'}</span>
-          <span className="opacity-40">−</span>
-          <span className="opacity-55">Gasto</span>
-          <span className="font-semibold">{saldo ? fmt0(saldo.gasto_livre) : '—'}</span>
-        </div>
-
-        {/* O período que esses números cobrem. Sem isso o app parece estar
-            falando do mês do calendário, que não é o mês do seu dinheiro. */}
-        {ciclo && (
-          <div className="font-mono text-[10.5px] tracking-[.02em] mt-[7px] opacity-55">
-            {dataCurta(ciclo.inicio)} a {dataCurta(ciclo.fim)}
-            <span className="opacity-50"> · </span>
-            fatura vence {dataCurta(ciclo.vencimento_fatura)}
-          </div>
-        )}
-      </div>
-
-      <Regua saldo={saldo} />
-
-      <div className="mx-5 mt-4 border-2 border-tinta flex items-stretch">
-        <div className="flex-1 px-[14px] py-[11px]">
-          <div className="font-mono text-[11px] tracking-[.16em] uppercase opacity-65">Ritmo diário</div>
-          <div className="font-mono text-[10.5px] opacity-45 mt-1">
-            até {ciclo ? dataCurta(ciclo.fim) : `${ultimoDia} de ${MESES[Number(mes.split('-')[1]) - 1]}`}
-          </div>
-        </div>
-        <div className="bg-carimbo text-tinta-clara px-[15px] py-[9px] flex items-baseline gap-1">
-          <span className="font-valor font-extrabold text-[44px] leading-none">
-            {saldo ? fmt(saldo.ritmo_diario) : '—'}
-          </span>
-          <span className="font-mono text-[10px] tracking-[.1em]">/DIA</span>
+        {/* 3. Decomposição sempre visível: sem ela o herói é um número solto. */}
+        <div style={{ fontFamily: MONO, fontSize: 11, marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'baseline' }}>
+          <span style={{ opacity: 0.4 }}>Renda</span>
+          <span style={{ fontWeight: 600 }}>{saldo ? fmt0(saldo.renda_total) : '—'}</span>
+          <span style={{ opacity: 0.3 }}>−</span>
+          <span style={{ opacity: 0.4 }}>Travado</span>
+          <span style={{ fontWeight: 600, color: cor.fosforo }}>{saldo ? fmt0(saldo.comprometido_total) : '—'}</span>
+          <span style={{ opacity: 0.3 }}>−</span>
+          <span style={{ opacity: 0.4 }}>Gasto</span>
+          <span style={{ fontWeight: 600 }}>{saldo ? fmt0(saldo.gasto_livre) : '—'}</span>
         </div>
       </div>
 
-      <div className="px-5 pt-5">
-        <div className="flex justify-between font-mono text-[10px] tracking-[.2em] uppercase opacity-55 border-b border-tinta pb-[6px]">
+      {/* 4. Régua do mês */}
+      <div style={{ padding: '18px 20px 0' }}>
+        <div style={{ display: 'flex', gap: 2, height: 14 }}>
+          {blocosDoMes(saldo).map((b, i) => (
+            <div key={i} style={{ flex: 1, borderRadius: 2, border: `1px solid ${b.borda}`, background: b.fundo }} />
+          ))}
+        </div>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', marginTop: 9,
+          fontFamily: MONO, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase', opacity: 0.6,
+        }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgba(155,255,59,.28)', border: '1px solid rgba(155,255,59,.5)' }} />
+            travado
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: cor.fosforo }} />
+            gasto livre
+          </span>
+          <span>{saldo ? saldo.dias_restantes : '—'}d restantes</span>
+        </div>
+      </div>
+
+      {/* 5. Ritmo do dia x o que sobrou dele */}
+      <div style={{ margin: '20px 16px 0', border: `1px solid ${cor.linha}`, borderRadius: 22, overflow: 'hidden', background: cor.painel }}>
+        <div style={{ display: 'flex' }}>
+          <div style={{ flex: 1, padding: '13px 16px', borderRight: '1px solid rgba(237,243,233,.1)' }}>
+            <div style={rotulo({ letterSpacing: '.2em', opacity: 0.45 })}>Ritmo do dia</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 5 }}>
+              <span style={{ fontWeight: 700, fontSize: 34, lineHeight: 1 }}>{saldo ? fmt(ritmo) : '—'}</span>
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '.1em', opacity: 0.45 }}>/DIA</span>
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: '13px 16px', background: estourou ? 'rgba(255,90,60,.1)' : 'rgba(155,255,59,.08)' }}>
+            <div style={rotulo({
+              letterSpacing: '.2em', opacity: 1,
+              color: estourou ? 'rgba(255,90,60,.8)' : 'rgba(155,255,59,.75)',
+            })}
+            >
+              {estourou ? 'Passou hoje' : 'Sobra hoje'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 5 }}>
+              <span style={{ fontWeight: 700, fontSize: 34, lineHeight: 1, color: estourou ? cor.alerta : cor.fosforo }}>
+                {saldo ? fmt(Math.abs(sobraHoje)) : '—'}
+              </span>
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '.1em', color: estourou ? 'rgba(255,90,60,.8)' : 'rgba(155,255,59,.75)' }}>
+                HOJE
+              </span>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: '0 16px 14px' }}>
+          <div style={{ height: 8, borderRadius: 4, background: 'rgba(237,243,233,.09)', overflow: 'hidden', display: 'flex' }}>
+            <div style={{ width: `${pctHoje}%`, background: estourou ? cor.alerta : cor.fosforo, borderRadius: 4 }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, ...meta({ opacity: 0.5 }) }}>
+            <span>gastei {fmt(gastoHoje)} hoje</span>
+            <span>{estourou ? 'ritmo do dia estourado' : `${Math.round(pctHoje)}% do ritmo usado`}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Últimos lançamentos */}
+      <div style={{ padding: '24px 20px 0' }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', paddingBottom: 8,
+          borderBottom: '1px solid rgba(237,243,233,.12)', ...rotulo(),
+        }}
+        >
           <span>Últimos lançamentos</span>
           <span>Valor</span>
         </div>
-
-        {gastos.length === 0 ? (
-          // Nunca "R$ 0,00": folha em branco é outra coisa.
-          <div className="py-[26px] font-mono text-[12px] opacity-50 leading-[1.6]">
-            Folha em branco.
+        {recentes.length === 0 ? (
+          <div style={{ padding: '28px 0', fontFamily: MONO, fontSize: 11.5, opacity: 0.45, lineHeight: 1.7 }}>
+            Memória vazia.
             <br />
-            Registre o primeiro gasto abaixo.
+            Diga o primeiro gasto ao Minimau ali embaixo.
           </div>
         ) : (
-          gastos.slice(0, 5).map((g) => (
+          recentes.map((g) => (
             <LinhaLancamento
               key={g.id}
               gasto={g}
-              quando={quando(g.data_gasto)}
-              valorFonte={30}
-              onEditar={aoEditar}
-              onExcluir={aoExcluir}
+              quando={quando}
+              corBarra={corBarra(g.categoria)}
+              rotuloCategoria={rotuloCategoria(g.categoria)}
+              aoEditar={aoEditar}
+              aoExcluir={aoExcluir}
             />
           ))
         )}

@@ -1,78 +1,77 @@
 import { useRef, useState } from 'react';
+import { cor, MONO } from '../tema';
 import { fmt } from '../utils/formato';
-import { ROTULO_CAT } from '../api';
 
-// Uma linha de lançamento com ações reveladas por swipe horizontal.
-// EDITAR (tinta) e EXCLUIR (carimbo) ficam por baixo, 76px cada; a linha
-// desliza por cima delas.
-export default function LinhaLancamento({ gasto, quando, valorFonte = 30, onEditar, onExcluir }) {
+const LARGURA_ACAO = 76;
+const LIMITE = -LARGURA_ACAO * 2; // as duas ações abertas
+const SNAP = -60;                 // arrastou mais que isto: abre de vez
+
+// Uma linha de gasto. O deslize horizontal revela EDITAR e EXCLUIR — o toque
+// simples não faz nada, então não há como excluir sem querer.
+// `touch-action: pan-y` deixa a rolagem vertical passar por cima do gesto.
+export default function LinhaLancamento({ gasto, quando, corBarra, rotuloCategoria, aoEditar, aoExcluir, compacta = false }) {
   const [dx, setDx] = useState(0);
   const [arrastando, setArrastando] = useState(false);
-  const inicio = useRef(0);
-
-  const aoDescer = (e) => {
-    inicio.current = e.clientX - dx;
-    setArrastando(true);
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-
-  const aoMover = (e) => {
-    if (!arrastando) return;
-    // Limite -152px: a largura exata dos dois botões.
-    setDx(Math.max(-152, Math.min(0, e.clientX - inicio.current)));
-  };
-
-  // Snap: passou de -60px, abre até o fim; senão volta.
-  const aoSubir = () => {
-    setArrastando(false);
-    setDx((d) => (d < -60 ? -152 : 0));
-  };
+  const x0 = useRef(0);
+  const base = useRef(0); // posição em que o dedo encostou
 
   const fechar = () => setDx(0);
 
   return (
-    <div className="relative overflow-hidden border-b border-[rgba(22,19,13,.16)]">
-      <div className="absolute inset-0 flex justify-end">
+    <div style={{ position: 'relative', overflow: 'hidden', borderBottom: `1px solid ${cor.divisor}` }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: 'flex-end' }}>
         <button
           type="button"
-          onClick={() => { fechar(); onEditar(gasto); }}
-          className="w-[76px] flex items-center justify-center bg-tinta text-tinta-clara font-mono text-[10px] tracking-[.14em]"
+          onClick={() => { fechar(); aoEditar(gasto); }}
+          style={{
+            width: LARGURA_ACAO, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: '#1A2226', color: cor.tinta,
+            fontFamily: MONO, fontSize: 9.5, letterSpacing: '.14em',
+          }}
         >
           EDITAR
         </button>
         <button
           type="button"
-          onClick={() => { fechar(); onExcluir(gasto); }}
-          className="w-[76px] flex items-center justify-center bg-carimbo text-tinta-clara font-mono text-[10px] tracking-[.14em]"
+          onClick={() => { fechar(); aoExcluir(gasto); }}
+          style={{
+            width: LARGURA_ACAO, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: cor.alerta, color: cor.fundo,
+            fontFamily: MONO, fontSize: 9.5, letterSpacing: '.14em',
+          }}
         >
           EXCLUIR
         </button>
       </div>
 
       <div
-        onPointerDown={aoDescer}
-        onPointerMove={aoMover}
-        onPointerUp={aoSubir}
-        onPointerCancel={aoSubir}
+        onPointerDown={(e) => { x0.current = e.clientX; base.current = dx; setArrastando(true); }}
+        onPointerMove={(e) => {
+          if (!arrastando) return;
+          setDx(Math.max(LIMITE, Math.min(0, base.current + e.clientX - x0.current)));
+        }}
+        onPointerUp={() => { setArrastando(false); setDx((d) => (d < SNAP ? LIMITE : 0)); }}
+        onPointerCancel={() => { setArrastando(false); setDx(0); }}
         style={{
+          position: 'relative', background: cor.fundo, display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center',
+          padding: `${compacta ? 12 : 13}px 0`, minHeight: 44, touchAction: 'pan-y',
           transform: `translateX(${dx}px)`,
-          // Sem transição enquanto o dedo está na tela: o movimento tem que
-          // acompanhar o dedo, não perseguí-lo.
           transition: arrastando ? 'none' : 'transform .26s cubic-bezier(.2,.9,.25,1)',
         }}
-        // pan-y deixa a rolagem vertical passar; só o eixo X é nosso.
-        className="relative bg-papel flex justify-between items-center py-3 min-h-[44px] touch-pan-y"
       >
-        <div className="flex flex-col gap-[3px] pr-[10px]">
-          <span className="font-sans text-[15px] font-medium">{gasto.descricao}</span>
-          <span className="font-mono text-[10px] tracking-[.12em] uppercase opacity-50">
-            {ROTULO_CAT[gasto.categoria] || gasto.categoria} · {quando}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingRight: 10, minWidth: 0 }}>
+          <span style={{ width: 6, height: compacta ? 24 : 26, borderRadius: 3, flex: 'none', background: corBarra }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {gasto.descricao}
+            </span>
+            <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.12em', textTransform: 'uppercase', opacity: 0.42 }}>
+              {rotuloCategoria} · {quando(gasto.data_gasto)}
+            </span>
+          </div>
         </div>
-        <span
-          className="font-valor font-bold leading-none pr-[2px]"
-          style={{ fontSize: `${valorFonte}px` }}
-        >
+        <span style={{ fontWeight: 700, fontSize: compacta ? 24 : 26, lineHeight: 1, flex: 'none' }}>
           {fmt(gasto.valor)}
         </span>
       </div>

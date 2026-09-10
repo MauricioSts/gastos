@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { LISTA_CAT, ROTULO_CAT } from '../api';
 import { leValor } from '../utils/formato';
+import { cor, MONO, SANS } from '../tema';
 
-// Formulário de conta fixa ou parcelamento. Usado em dois lugares com a mesma
-// aparência invertida ou não: no onboarding (sobre tinta) e na tela
-// Compromissos (sobre papel).
+// Formulário de conta fixa ou parcelamento. Um só componente para os dois
+// tipos, usado no Travado e no Onboarding.
 //
 // O campo que justifica este formulário existir é `parcela_atual`: sem ele,
 // cadastrar uma compra que já está na 9ª de 12 parcelas é impossível, e o
-// comprometido dos meses seguintes fica errado até a última parcela.
+// travado dos meses seguintes fica errado até a última parcela.
 export default function FormularioCompromisso({
-  tipo, inicial = null, invertido = false, mes,
-  aoSalvar, aoCancelar, aoExcluir,
+  tipo, inicial = null, mes, aoSalvar, aoCancelar, aoExcluir,
 }) {
   const ehParcelamento = tipo === 'parcelamento';
 
@@ -22,29 +21,21 @@ export default function FormularioCompromisso({
   const [dia, setDia] = useState(String(inicial?.dia_vencimento || ''));
   const [totalParcelas, setTotalParcelas] = useState(String(inicial?.total_parcelas || ''));
   const [parcelaAtual, setParcelaAtual] = useState(String(inicial?.parcela_atual || '1'));
-  const [categoria, setCategoria] = useState(
-    inicial?.categoria || (ehParcelamento ? 'compras' : 'contas'),
-  );
+  const [categoria, setCategoria] = useState(inicial?.categoria || (ehParcelamento ? 'compras' : 'contas'));
   const [ativa, setAtiva] = useState(inicial ? inicial.ativa !== 0 : true);
   const [aviso, setAviso] = useState('');
 
-  // Paleta: sobre tinta tudo inverte, mas as regras de forma continuam as
-  // mesmas — borda dura, raio zero, label mono em caixa alta.
-  const c = invertido
-    ? { texto: '#F6F1E4', borda: '#F6F1E4', campo: 'transparent', rotulo: 'opacity-55' }
-    : { texto: '#16130D', borda: '#16130D', campo: '#F4EFE2', rotulo: 'opacity-55' };
+  const campo = {
+    boxSizing: 'border-box', width: '100%', border: `1px solid rgba(155,255,59,.24)`,
+    borderRadius: 12, background: cor.fundo, padding: '10px 12px',
+    fontFamily: MONO, fontSize: 16, color: cor.tinta, outline: 'none', minHeight: 44,
+  };
 
   const Rotulo = ({ children }) => (
-    <div className={`font-mono text-[10px] tracking-[.16em] uppercase ${c.rotulo} mb-[5px]`}>
+    <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.18em', textTransform: 'uppercase', opacity: 0.45, marginBottom: 6 }}>
       {children}
     </div>
   );
-
-  const estiloCampo = {
-    background: c.campo,
-    borderColor: c.borda,
-    color: c.texto,
-  };
 
   const salvar = () => {
     const nome = descricao.trim();
@@ -76,7 +67,12 @@ export default function FormularioCompromisso({
   };
 
   return (
-    <div className="border-2 p-[14px] flex flex-col gap-[14px]" style={{ borderColor: c.borda }}>
+    <div style={{
+      border: `1px solid ${cor.linhaViva}`, borderRadius: 18, background: cor.painel,
+      padding: 14, display: 'flex', flexDirection: 'column', gap: 14,
+      animation: 'emergir .28s cubic-bezier(.2,.9,.25,1)',
+    }}
+    >
       <div>
         <Rotulo>{ehParcelamento ? 'O que você comprou' : 'Que conta é essa'}</Rotulo>
         <input
@@ -84,33 +80,31 @@ export default function FormularioCompromisso({
           onChange={(e) => setDescricao(e.target.value)}
           placeholder={ehParcelamento ? 'celular' : 'internet'}
           aria-label="Descrição"
-          className="w-full box-border border-[1.5px] px-[10px] py-[9px] font-sans text-[16px] outline-none min-h-[44px] placeholder:opacity-40"
-          style={estiloCampo}
+          style={{ ...campo, fontFamily: SANS }}
         />
       </div>
 
-      <div className="flex gap-[10px]">
-        <div className="flex-1">
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ flex: 1 }}>
           <Rotulo>{ehParcelamento ? 'Valor da parcela' : 'Valor mensal'}</Rotulo>
-          <div
-            className="flex items-center gap-2 border-[1.5px] px-[10px] min-h-[44px]"
-            style={estiloCampo}
-          >
-            <span className="font-mono text-[13px] font-semibold opacity-55">R$</span>
+          <div style={{ ...campo, display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px' }}>
+            <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, opacity: 0.45 }}>R$</span>
             <input
               value={valor}
               onChange={(e) => setValor(e.target.value)}
               inputMode="decimal"
               placeholder={ehParcelamento ? '180' : '99'}
               aria-label={ehParcelamento ? 'Valor da parcela' : 'Valor mensal'}
-              className="flex-1 w-full border-none bg-transparent outline-none font-valor font-extrabold text-[30px] p-0 placeholder:opacity-30"
-              style={{ color: c.texto }}
+              style={{
+                flex: 1, width: '100%', border: 'none', background: 'transparent', outline: 'none',
+                fontFamily: SANS, fontWeight: 700, fontSize: 30, color: cor.tinta, padding: 0,
+              }}
             />
           </div>
         </div>
 
         {!ehParcelamento && (
-          <div className="w-[104px]">
+          <div style={{ width: 104 }}>
             <Rotulo>Vence dia</Rotulo>
             <input
               value={dia}
@@ -118,8 +112,7 @@ export default function FormularioCompromisso({
               inputMode="numeric"
               placeholder="10"
               aria-label="Dia de vencimento"
-              className="w-full box-border border-[1.5px] px-[10px] py-[9px] font-mono text-[16px] outline-none min-h-[44px] placeholder:opacity-40"
-              style={estiloCampo}
+              style={{ ...campo, textAlign: 'center' }}
             />
           </div>
         )}
@@ -128,30 +121,27 @@ export default function FormularioCompromisso({
       {ehParcelamento && (
         <div>
           <Rotulo>Em que parcela você está</Rotulo>
-          <div className="flex items-center gap-[10px]">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <input
               value={parcelaAtual}
               onChange={(e) => setParcelaAtual(e.target.value)}
               inputMode="numeric"
               placeholder="9"
               aria-label="Parcela atual"
-              className="w-[76px] box-border border-[1.5px] px-[10px] py-[9px] font-mono text-[16px] text-center outline-none min-h-[44px] placeholder:opacity-40"
-              style={estiloCampo}
+              style={{ ...campo, width: 76, textAlign: 'center' }}
             />
-            <span className="font-mono text-[11px] tracking-[.14em] uppercase opacity-55">de</span>
+            <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', opacity: 0.45 }}>de</span>
             <input
               value={totalParcelas}
               onChange={(e) => setTotalParcelas(e.target.value)}
               inputMode="numeric"
               placeholder="12"
               aria-label="Total de parcelas"
-              className="w-[76px] box-border border-[1.5px] px-[10px] py-[9px] font-mono text-[16px] text-center outline-none min-h-[44px] placeholder:opacity-40"
-              style={estiloCampo}
+              style={{ ...campo, width: 76, textAlign: 'center' }}
             />
           </div>
-          <div className="font-mono text-[10px] opacity-50 mt-[6px] leading-[1.6]">
-            Se você já pagou 8 de 12, está na 9. As parcelas param de contar
-            sozinhas quando acabam.
+          <div style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.45, marginTop: 7, lineHeight: 1.7 }}>
+            Se você já pagou 8 de 12, está na 9. As parcelas param de contar sozinhas quando acabam.
           </div>
         </div>
       )}
@@ -162,12 +152,9 @@ export default function FormularioCompromisso({
           value={categoria}
           onChange={(e) => setCategoria(e.target.value)}
           aria-label="Categoria"
-          className="w-full box-border border-[1.5px] px-[10px] py-[9px] font-mono text-[11px] tracking-[.1em] uppercase outline-none min-h-[44px]"
-          style={{ ...estiloCampo, background: invertido ? '#16130D' : '#F4EFE2' }}
+          style={{ ...campo, fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase' }}
         >
-          {LISTA_CAT.map((k) => (
-            <option key={k} value={k}>{ROTULO_CAT[k]}</option>
-          ))}
+          {LISTA_CAT.map((k) => <option key={k} value={k}>{ROTULO_CAT[k]}</option>)}
         </select>
       </div>
 
@@ -176,29 +163,33 @@ export default function FormularioCompromisso({
         <button
           type="button"
           onClick={() => setAtiva((a) => !a)}
-          className="flex items-center gap-[10px] font-mono text-[11px] tracking-[.14em] uppercase min-h-[44px]"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', minHeight: 44 }}
         >
-          <span
-            className="w-[18px] h-[18px] border-[1.5px] flex-none"
-            style={{ borderColor: c.borda, background: ativa ? c.borda : 'transparent' }}
+          <span style={{
+            width: 18, height: 18, borderRadius: 5, flex: 'none',
+            border: `1px solid ${cor.fosforo}`, background: ativa ? cor.fosforo : 'transparent',
+          }}
           />
-          <span>{ativa ? 'Ativa · conta todo mês' : 'Desativada · não conta mais'}</span>
+          <span style={{ opacity: ativa ? 1 : 0.55 }}>{ativa ? 'Ativa · conta todo mês' : 'Desativada · não conta mais'}</span>
         </button>
       )}
 
       {aviso && (
-        <div className="font-mono text-[11px] leading-[1.5] flex gap-2 text-carimbo">
+        <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.55, display: 'flex', gap: 8, color: cor.alerta }}>
           <span>≠</span>
           <span>{aviso}</span>
         </div>
       )}
 
-      <div className="flex gap-[10px]">
+      <div style={{ display: 'flex', gap: 10 }}>
         <button
           type="button"
           onClick={aoCancelar}
-          className="flex-1 border-2 p-3 text-center font-mono text-[11px] tracking-[.14em] uppercase min-h-[44px]"
-          style={{ borderColor: invertido ? 'rgba(246,241,228,.4)' : 'rgba(22,19,13,.35)' }}
+          style={{
+            flex: 1, border: `1px solid rgba(237,243,233,.22)`, borderRadius: 14, padding: 12,
+            textAlign: 'center', fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em',
+            textTransform: 'uppercase', minHeight: 44,
+          }}
         >
           Cancelar
         </button>
@@ -206,7 +197,11 @@ export default function FormularioCompromisso({
           <button
             type="button"
             onClick={aoExcluir}
-            className="flex-1 bg-carimbo text-tinta-clara p-3 text-center font-mono text-[11px] tracking-[.14em] uppercase min-h-[44px]"
+            style={{
+              flex: 1, borderRadius: 14, padding: 12, textAlign: 'center', background: cor.alerta,
+              color: cor.fundo, fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em',
+              textTransform: 'uppercase', fontWeight: 600, minHeight: 44,
+            }}
           >
             Excluir
           </button>
@@ -214,10 +209,10 @@ export default function FormularioCompromisso({
         <button
           type="button"
           onClick={salvar}
-          className="flex-[1.4] p-3 text-center font-mono text-[11px] tracking-[.14em] uppercase min-h-[44px]"
           style={{
-            background: invertido ? '#F6F1E4' : '#16130D',
-            color: invertido ? '#16130D' : '#F6F1E4',
+            flex: 1.4, borderRadius: 14, padding: 12, textAlign: 'center', background: cor.fosforo,
+            color: cor.fundo, fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em',
+            textTransform: 'uppercase', fontWeight: 600, minHeight: 44,
           }}
         >
           {inicial ? 'Salvar' : 'Adicionar'}

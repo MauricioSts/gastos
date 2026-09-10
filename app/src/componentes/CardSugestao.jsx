@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { leValor } from '../utils/formato';
+import { cor, MONO, SANS } from '../tema';
 
-// Card de compromisso recorrente. Visualmente distinto do card comum — borda,
-// sombra e faixa em carimbo — porque o que ele grava vai pesar em vários meses,
-// não em um lançamento só. Nada vira recorrente sem passar por aqui.
+// Card de compromisso recorrente. Visualmente distinto do card comum — faixa
+// sólida em fósforo e halo — porque o que ele grava vai pesar em vários meses,
+// não num lançamento só. Nada vira recorrente sem passar por aqui.
 export default function CardSugestao({ tipo, sugestao, aoDescartar, aoCadastrar }) {
   const ehParcelamento = tipo === 'parcelamento';
   const [valor, setValor] = useState(
@@ -14,52 +15,70 @@ export default function CardSugestao({ tipo, sugestao, aoDescartar, aoCadastrar 
   );
 
   const texto = ehParcelamento
-    ? `“${sugestao.descricao}” parece um parcelamento. Vai pesar no comprometido de vários meses.`
+    ? `“${sugestao.descricao}” parece um parcelamento. Vai pesar no travado de vários meses.`
     : `“${sugestao.descricao}” parece uma conta fixa. Vai se repetir todo mês até você desativar.`;
 
-  const legenda = ehParcelamento
-    ? 'valor da parcela · total de parcelas'
-    : 'valor · dia de vencimento';
+  const legenda = ehParcelamento ? 'valor da parcela · total de parcelas' : 'valor · dia de vencimento';
+
+  const acao = {
+    flex: 1, padding: 13, textAlign: 'center', fontFamily: MONO, fontSize: 10.5,
+    letterSpacing: '.14em', textTransform: 'uppercase', minHeight: 44,
+  };
 
   return (
-    <div className="absolute left-[14px] right-[14px] bottom-[176px] z-[33] border-2 border-carimbo bg-papel-claro animate-carimbo shadow-[6px_6px_0_#D2360A]">
-      <div className="bg-carimbo text-tinta-clara px-3 py-[7px] font-mono text-[10px] tracking-[.2em] uppercase">
+    <div style={{
+      position: 'absolute', left: 12, right: 12, bottom: 180, zIndex: 33, borderRadius: 22,
+      border: `1px solid ${cor.fosforo}`, background: cor.painel, overflow: 'hidden',
+      animation: 'emergir .34s cubic-bezier(.2,.9,.25,1)',
+      boxShadow: '0 0 0 4px rgba(155,255,59,.1),0 22px 50px rgba(0,0,0,.7)',
+    }}
+    >
+      <div style={{
+        background: cor.fosforo, color: cor.fundo, padding: '9px 14px', fontFamily: MONO,
+        fontSize: 9.5, letterSpacing: '.2em', textTransform: 'uppercase', fontWeight: 600,
+      }}
+      >
         Isto vai se repetir — confirme
       </div>
 
-      <div className="px-[14px] py-3 flex flex-col gap-[10px]">
-        <div className="font-mono text-[11.5px] leading-[1.55]">{texto}</div>
-        <div className="flex gap-2">
+      <div style={{ padding: '13px 14px', display: 'flex', flexDirection: 'column', gap: 11 }}>
+        <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.6, opacity: 0.8 }}>{texto}</div>
+        <div style={{ display: 'flex', gap: 9 }}>
           <input
             value={valor}
             onChange={(e) => setValor(e.target.value)}
             inputMode="decimal"
             aria-label={ehParcelamento ? 'Valor da parcela' : 'Valor mensal'}
-            className="w-[110px] border-[1.5px] border-tinta bg-papel px-2 py-1 font-valor font-extrabold text-[32px] text-tinta outline-none"
+            style={{
+              width: 112, border: `1px solid ${cor.linhaViva}`, borderRadius: 12, background: cor.fundo,
+              padding: '5px 10px', fontFamily: SANS, fontWeight: 700, fontSize: 28, color: cor.tinta, outline: 'none',
+            }}
           />
           <input
             value={campo2}
             onChange={(e) => setCampo2(e.target.value)}
             inputMode="numeric"
             aria-label={ehParcelamento ? 'Total de parcelas' : 'Dia de vencimento'}
-            className="flex-1 border-[1.5px] border-tinta bg-papel px-[10px] py-[9px] font-mono text-[14px] text-tinta outline-none min-h-[44px]"
+            style={{
+              flex: 1, minWidth: 0, border: `1px solid rgba(237,243,233,.18)`, borderRadius: 12,
+              background: cor.fundo, padding: '10px 12px', fontFamily: MONO, fontSize: 14,
+              color: cor.tinta, outline: 'none', minHeight: 44,
+            }}
           />
         </div>
-        <div className="font-mono text-[10px] opacity-55 tracking-[.1em] uppercase">{legenda}</div>
+        <div style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.45, letterSpacing: '.1em', textTransform: 'uppercase' }}>
+          {legenda}
+        </div>
       </div>
 
-      <div className="flex border-t-[1.5px] border-tinta">
-        <button
-          type="button"
-          onClick={aoDescartar}
-          className="flex-1 p-3 text-center font-mono text-[11px] tracking-[.14em] uppercase border-r-[1.5px] border-tinta min-h-[44px]"
-        >
+      <div style={{ display: 'flex', borderTop: `1px solid ${cor.divisorForte}` }}>
+        <button type="button" onClick={aoDescartar} style={{ ...acao, borderRight: `1px solid ${cor.divisorForte}` }}>
           Descartar
         </button>
         <button
           type="button"
           onClick={() => aoCadastrar({ valor: leValor(valor) ?? 0, campo2: parseInt(campo2, 10) || 1 })}
-          className="flex-1 p-3 text-center bg-tinta text-tinta-clara font-mono text-[11px] tracking-[.14em] uppercase min-h-[44px]"
+          style={{ ...acao, background: cor.fosforo, color: cor.fundo, fontWeight: 600 }}
         >
           Cadastrar
         </button>

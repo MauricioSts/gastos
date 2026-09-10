@@ -1,14 +1,15 @@
-# Folha — frontend do app de gastos
+# Minimau — frontend do app de gastos
 
-App de controle de gastos por linguagem natural. React 18 + Vite + Tailwind,
-PWA instalável no iOS. Consome a [gastos-api](../gastos-api) — backend Node +
-SQLite com extração por LLM local (Ollama).
+App de controle de gastos por conversa. React 18 + Vite, estilos sob medida
+(sem framework de UI), PWA instalável no iOS. Consome a
+[gastos-api](../gastos-api) — backend Node + SQLite com extração por LLM local
+(Ollama).
 
 O conceito que organiza a interface inteira:
 
 ```
-disponível de fato = renda − comprometido − gasto livre
-ritmo diário       = disponível de fato ÷ dias restantes
+disponível de fato = renda − travado (contas fixas + parcelas) − gasto livre
+ritmo do dia       = disponível de fato ÷ dias restantes
 ```
 
 Os dois sentidos do dinheiro passam pelo mesmo campo de texto. `gastei 32 no
@@ -17,7 +18,7 @@ renda do mês. Contas fixas e parcelamentos, que pesam em vários meses, nunca
 são gravados direto: vão para um card de confirmação com os campos editáveis.
 
 O número em destaque na Home é **sempre** o disponível de fato, nunca a renda
-bruta, e a decomposição `Renda 1.700 − Comprometido 365 − Gasto 412` fica
+bruta, e a decomposição `Renda 1.700 − Travado 365 − Gasto 412` fica
 permanentemente visível abaixo dele. Quem tem 1.700 de renda e 365 travados em
 contas fixas e parcelas não tem 1.700 para gastar no dia 1º.
 
@@ -77,11 +78,15 @@ src/
 │   ├── CardConfirmacao.jsx   card de gasto ou entrada, com desfazer de 5s
 │   ├── FormularioCompromisso.jsx  conta fixa / parcelamento, com variante
 │   │                              invertida para o onboarding
-│   ├── CardSugestao.jsx      card de compromisso recorrente (carimbo)
+│   ├── CardSugestao.jsx      card de compromisso recorrente (fósforo sólido)
 │   ├── FaixaErro.jsx         aviso discreto acima da barra
 │   ├── LinhaLancamento.jsx   linha com swipe revelando editar/excluir
-│   └── telas/                Home, Resumo, Historico, Compromissos,
+│   ├── Mascote.jsx           o Minimau, SVG animado por CSS (prop corOlho)
+│   ├── Logo.jsx              o rosto em viewBox quadrado: header e ícone PWA
+│   ├── Notificacao.jsx       aviso de fatura no formato de notificação do iOS
+│   └── telas/                Home, Painel, Historico, Compromissos,
 │                             Projecao, Ajustes, Onboarding
+├── tema.js                   paleta, fontes, raios e rampa de categorias
 ├── hooks/                    placeholder rotativo, teclado iOS, vibração
 └── utils/formato.js          formatação e leitura de valores em reais
 ```
@@ -102,42 +107,65 @@ vive nas funções `normaliza*` de `src/api/index.js`:
 | `projecao[].mes_referencia` / `.comprometido_total` / `.sobra_projetada` | `mes` / `comprometido` / `sobra` |
 | `gastos[].data_gasto` + `.criado_em` | `data_gasto` com hora (`2026-08-14T13:12`) |
 
+O backend não tem rota de dashboard: o Painel do mês é derivado em
+`getPainel(mes)`, na mesma camada, a partir dos gastos do ciclo e do ciclo
+anterior (só para a variação).
+
 ## Direção visual
 
-Livro-caixa impresso: papel bone, tinta preta, carimbo vermelho.
+Terminal industrial: painel de instrumentos escuro com fósforo verde. Nada de
+card branco, gradiente colorido, cofrinho ou gráfico de pizza.
 
 | Token | Hex | Uso |
 |---|---|---|
-| `papel` | `#E8E2D4` | fundo de todas as telas |
-| `papel-claro` | `#F4EFE2` | inputs e barras vazias |
-| `tinta` | `#16130D` | texto, bordas, gasto livre, telas invertidas |
-| `tinta-clara` | `#F6F1E4` | texto sobre tinta e sobre carimbo |
-| `carimbo` | `#D2360A` | acento único, poucas vezes por tela |
+| `fundo` | `#05080A` | fundo do app |
+| `painel` | `#0B1013` | campos e caixas internas |
+| `tinta` | `#EDF3E9` | texto principal |
+| `fosforo` | `#9BFF3B` | acento único: valores, ativos, bordas vivas |
+| `fosforo-claro` | `#C9FF8F` | hover e olho do mascote em repouso |
+| `atencao` | `#FFC24A` | processando, fatura fechando |
+| `alerta` | `#FF5A3C` | ritmo estourado, ações destrutivas |
 
-Três famílias, cada uma com um papel fixo: **Big Shoulders Display** só para
-valores em reais, **IBM Plex Mono** para todo o aparato contábil (labels,
-botões, navegação), **IBM Plex Sans** só para descrição de lançamento.
+O fósforo aparece poucas vezes por tela e **nunca** como fundo de área grande.
+Os tokens moram em `src/tema.js`; os estilos são objetos inline, junto do JSX.
+
+Duas famílias, cada uma com um papel fixo: **Chakra Petch** para títulos,
+interface e valores; **IBM Plex Mono** para todo o aparato (labels, metadados,
+navegação, campos), sempre em caixa alta com `letter-spacing` entre `.14em` e
+`.24em` nos labels. Nada abaixo de 9.5px.
 
 Regras que valem em todo lugar:
 
-- **Raio de borda zero.** Em nada, nunca.
-- Sombra só nos cards flutuantes, e é dura e deslocada (`6px 6px 0`), sem blur.
-- **Hachura diagonal** = comprometido. **Sólido tinta** = gasto livre.
-  **Vazio** = disponível. Esse par se repete na régua da Home, nas barras do
-  Resumo e nas colunas da Projeção — é a linguagem visual do app.
-- Os centavos do saldo herói saem em `carimbo`; isso não se repete em lugar
+- Raio 14px em campos e chips, 18–22px em cards. Bordas de 1px em
+  `rgba(155,255,59,.22)`, sem sombra difusa colorida.
+- **Scanline** fixa sobre tudo (`linear-gradient` de 1px a cada 3px, opacidade
+  .5). Sem ela o app perde a leitura de terminal.
+- Travado em verde escuro, gasto livre em fósforo, disponível vazio. Esse par
+  se repete na régua da Home, nas barras do Painel e do Travado e na Projeção.
+- Os centavos do saldo herói saem em fósforo; isso não se repete em lugar
   nenhum, é a assinatura da tela.
-- Ruído de papel (`feTurbulence`) sobre tudo, abaixo dos modais.
+- Processamento é um tracejado que corre (`esteira`), nunca um spinner.
+
+### O Minimau
+
+O mascote é SVG vetorial animado por CSS (`src/componentes/Mascote.jsx`) — não
+é vídeo, GIF nem Lottie. Ele flutua 7px em 4,2s, inclina a cabeça, acena com a
+mão direita de quatro dedos (±17° em 1,15s, sem pulo) e **pisca duas vezes** por
+ciclo de 6,4s. A cor da íris é `prop corOlho` e reflete o estado do app: verde
+em repouso, laranja processando, vermelho quando o ritmo estourou.
+
+O rosto isolado em viewBox quadrado é a logo (`Logo.jsx`), usada no cabeçalho a
+22px, no avatar da notificação e como ícone do PWA — os PNGs de
+`public/icones/` são rasterizações dele.
+
+A fala do card da Home é gerada pelo estado, nunca texto fixo: dia limpo, ritmo
+em dia, ritmo estourado, fatura fechando ou processando.
 
 O onboarding cadastra compromissos de verdade — descrição, valor, vencimento,
 categoria e, no parcelamento, **em que parcela você já está**. Esse último campo
 é a razão do formulário existir: sem ele, uma compra na 9ª de 12 parcelas entra
-como se estivesse na 1ª e o comprometido dos próximos meses nasce errado. A tela
-Compromissos tem o mesmo formulário para criar, editar e excluir.
-
-Só dois momentos ganham animação: a entrada dos cards (`carimbo`) e o saldo
-herói re-animando a cada mudança de valor (`subirValor`, forçado por
-`key={disponivel}`). Processamento é um tracejado que corre, nunca um spinner.
+como se estivesse na 1ª e o travado dos próximos meses nasce errado. A tela
+Travado tem o mesmo formulário para criar, editar e excluir.
 
 ## iOS
 
@@ -146,8 +174,8 @@ herói re-animando a cada mudança de valor (`subirValor`, forçado por
 - `font-size: 16px` em todos os campos (abaixo disso o Safari dá zoom ao focar).
 - Teclado: `visualViewport` mede quanto da tela foi coberto e a barra de
   entrada sobe junto (`--teclado` em `useTecladoIOS`).
-- Manifest, ícones de 32 a 512 (incluindo `maskable`) e splash screens para as
-  cinco resoluções de iPhone mais comuns.
+- Manifest, ícones de 32 a 1024 (incluindo `maskable`) e splash screens para as
+  cinco resoluções de iPhone mais comuns, todos gerados do SVG da logo.
 - Vibração nos dois momentos de confirmação: `18ms` ao registrar um gasto,
   `[12,40,12]` ao sugerir um compromisso recorrente.
 - Ditado por Web Speech API (`pt-BR`). Sem suporte, avisa na faixa discreta —

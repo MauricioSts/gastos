@@ -220,7 +220,13 @@ export async function getCiclo(mes) {
   if (!USAR_MOCK) return req(`/api/ciclo${mes ? `?mes=${mes}` : ''}`);
   await espera(60);
   const atual = cicloLocal(`${db.hoje.mes}-${String(db.hoje.dia).padStart(2, '0')}`);
-  return { ...janelaLocal(mes || atual), ciclo_atual: atual, configuracao: CICLO_PADRAO };
+  return {
+    ...janelaLocal(mes || atual),
+    ciclo_atual: atual,
+    dias_decorridos: db.hoje.dia,
+    dias_restantes: Math.max(1, db.hoje.dias_no_mes - db.hoje.dia + 1),
+    configuracao: { ...CICLO_PADRAO, notificar: avisoMock },
+  };
 }
 
 export async function getSaldo(mes = hoje.mes) {
@@ -234,6 +240,10 @@ export async function getSaldo(mes = hoje.mes) {
   const gasto_livre = db.gastos.filter((g) => g.data_gasto.startsWith(mes)).reduce((s, g) => s + g.valor, 0);
   const disponivel = renda_total - comprometido_total - gasto_livre;
   const dias_restantes = Math.max(1, db.hoje.dias_no_mes - db.hoje.dia + 1);
+  const hojeIso = `${db.hoje.mes}-${String(db.hoje.dia).padStart(2, '0')}`;
+  const gastoHojeMock = db.gastos
+    .filter((g) => g.data_gasto.startsWith(hojeIso))
+    .reduce((s, g) => s + g.valor, 0);
   return {
     mes_referencia: mes,
     ciclo: janelaLocal(mes),
@@ -243,6 +253,17 @@ export async function getSaldo(mes = hoje.mes) {
     dias_restantes,
     ritmo_diario: disponivel / dias_restantes,
     renda_definida: renda_total > 0,
+    gasto_hoje: gastoHojeMock,
+    ritmo_restante_hoje: disponivel / dias_restantes - gastoHojeMock,
+    fatura: {
+      dia_fechamento: CICLO_PADRAO.dia_fechamento,
+      dia_vencimento: CICLO_PADRAO.dia_pagamento,
+      fecha_em: janelaLocal(mes).fim,
+      vence_em: janelaLocal(mes).vencimento_fatura,
+      dias_para_fechar: Math.max(0, CICLO_PADRAO.dia_fechamento - db.hoje.dia),
+      total_ciclo: comprometido_total + gasto_livre,
+      notificar: avisoMock,
+    },
   };
 }
 
@@ -549,3 +570,129 @@ export const ROTULO_CAT = {
   compras: 'Compras', contas: 'Contas', assinaturas: 'Assinaturas', educacao: 'Educação', outros: 'Outros',
 };
 export const LISTA_CAT = Object.keys(ROTULO_CAT);
+
+// ---------------------------------------------------------------------------
+// Painel do mês
+// ---------------------------------------------------------------------------
+// O backend não tem rota de dashboard: o painel é derivado aqui, a partir dos
+// gastos do ciclo (e do ciclo anterior, só para a variação). Fica nesta camada
+// pelo mesmo motivo que as traduções: nenhuma tela faz conta de agregação.
+
+// Todos os dias do ciclo, do início ao fim, como YYYY-MM-DD.
+function diasDoCiclo(ciclo) {
+  const dias = [];
+  let d = ciclo.inicio;
+  // Guarda de segurança: nenhum ciclo passa de 40 dias.
+  for (let i = 0; i < 40 && d <= ciclo.fim; i += 1) {
+    dias.push(d);
+    d = somaDias(d, 1);
+  }
+  return dias;
+}
+
+// Tradução do dashboard do backend para os nomes que as telas usam.
+function normalizaPainel(d) {
+  return {
+    total: d.total,
+    media_diaria: d.media_diaria,
+    maior_dia: d.maior_dia,
+    dias_com_gasto: d.dias_com_gasto,
+    dias_no_ciclo: d.dias_no_ciclo,
+    por_categoria: d.por_categoria,
+    por_dia: d.dia_a_dia,
+    por_semana: d.semanas,
+    top: d.maiores,
+    variacao: d.comparativo.variacao,
+    mes_anterior: d.comparativo.mes_anterior,
+  };
+}
+
+export async function getPainel(mes = hoje.mes) {
+  if (!USAR_MOCK) return normalizaPainel(await req(`/api/dashboard?mes=${mes}`));
+  const anterior = somaMes(mes, -1);
+  const [resumo, gastos, gastosAnteriores, janela] = await Promise.all([
+    getResumo(mes), getGastos(mes), getGastos(anterior), getCiclo(mes),
+  ]);
+
+  const dias = diasDoCiclo(janela);
+  const porDia = dias.map((data) => ({ data, dia: Number(data.slice(8, 10)), valor: 0 }));
+  const indice = Object.fromEntries(porDia.map((d, i) => [d.data, i]));
+
+  gastos.forEach((g) => {
+    const i = indice[g.data_gasto.slice(0, 10)];
+    // Gasto lançado fora da janela (mês do calendário ≠ ciclo) entra no
+    // primeiro dia em vez de sumir do gráfico.
+    porDia[i === undefined ? 0 : i].valor += g.valor;
+  });
+
+  const total = gastos.reduce((s, g) => s + g.valor, 0);
+  const totalAnterior = gastosAnteriores.reduce((s, g) => s + g.valor, 0);
+  const comGasto = porDia.filter((d) => d.valor > 0);
+  const maior = porDia.reduce((a, b) => (b.valor > a.valor ? b : a), porDia[0] || { valor: 0, dia: 0 });
+
+  // Semanas de 7 dias corridos dentro da janela, não semanas do calendário.
+  const porSemana = [];
+  for (let i = 0; i < porDia.length; i += 7) {
+    porSemana.push({
+      rotulo: `S${porSemana.length + 1}`,
+      valor: porDia.slice(i, i + 7).reduce((s, d) => s + d.valor, 0),
+    });
+  }
+
+  // A rosca mostra gasto livre: o comprometido não é escolha do mês.
+  const livre = (resumo.por_categoria || []).filter((c) => c.livre > 0);
+  const somaLivre = livre.reduce((s, c) => s + c.livre, 0);
+
+  return {
+    total,
+    media_diaria: comGasto.length ? total / comGasto.length : 0,
+    maior_dia: { dia: maior.dia, valor: maior.valor },
+    dias_com_gasto: comGasto.length,
+    dias_no_ciclo: porDia.length,
+    por_categoria: livre
+      .map((c) => ({
+        categoria: c.categoria,
+        valor: c.livre,
+        percentual: somaLivre ? (c.livre / somaLivre) * 100 : 0,
+      }))
+      .sort((a, b) => b.valor - a.valor),
+    por_dia: porDia,
+    por_semana: porSemana,
+    top: [...gastos].sort((a, b) => b.valor - a.valor).slice(0, 3),
+    // Sem base no ciclo anterior a comparação seria ruído, então some.
+    variacao: totalAnterior > 0 ? ((total - totalAnterior) / totalAnterior) * 100 : null,
+    mes_anterior: anterior,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Fatura
+// ---------------------------------------------------------------------------
+// O ciclo vem do backend; o resto (quantos dias faltam, se avisa) é local.
+
+// O aviso de fatura é configuração do servidor (`fatura_notificar`), não do
+// navegador: assim o ajuste segue a pessoa entre celular e desktop. No mock
+// ele vive em memória.
+let avisoMock = true;
+
+export async function definirAviso(ligado) {
+  if (!USAR_MOCK) {
+    const r = await req('/api/fatura', { method: 'PATCH', body: JSON.stringify({ notificar: ligado }) });
+    return r.configuracao.notificar;
+  }
+  await espera(80);
+  avisoMock = ligado;
+  return avisoMock;
+}
+
+// Dia em que a fatura fecha. Mudar isto reescreve a janela de todos os ciclos —
+// o backend não materializa a que mês cada gasto pertence.
+export async function definirFechamento(dia) {
+  if (!USAR_MOCK) {
+    const r = await req('/api/fatura', { method: 'PATCH', body: JSON.stringify({ dia_fechamento: dia }) });
+    return r.configuracao;
+  }
+  await espera(80);
+  CICLO_PADRAO.dia_fechamento = dia;
+  return { ...CICLO_PADRAO, notificar: avisoMock };
+}

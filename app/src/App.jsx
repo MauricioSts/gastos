@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as api from './api';
-import { MESES, nomeMes } from './api';
-import { leValor } from './utils/formato';
+import { nomeMes, LISTA_CAT, ROTULO_CAT } from './api';
+import { leValor, fmt, fmt0 } from './utils/formato';
 import { vibrar } from './hooks/useVibrar';
 import { useTecladoIOS } from './hooks/useTecladoIOS';
+import { cor, MONO, corCategoria } from './tema';
 
+import Logo from './componentes/Logo';
 import BarraEntrada from './componentes/BarraEntrada';
 import FaixaErro from './componentes/FaixaErro';
+import Notificacao from './componentes/Notificacao';
 import CardConfirmacao from './componentes/CardConfirmacao';
 import CardSugestao from './componentes/CardSugestao';
 import Home from './componentes/telas/Home';
-import Resumo from './componentes/telas/Resumo';
+import Painel from './componentes/telas/Painel';
 import Historico from './componentes/telas/Historico';
 import Compromissos from './componentes/telas/Compromissos';
 import Projecao from './componentes/telas/Projecao';
@@ -18,10 +21,10 @@ import Ajustes from './componentes/telas/Ajustes';
 import Onboarding from './componentes/telas/Onboarding';
 
 const TITULOS = {
-  home: 'folha 01',
-  resumo: 'resumo',
+  home: 'hoje',
+  painel: 'painel do mês',
   historico: 'histórico',
-  compromissos: 'compromissos',
+  compromissos: 'travado',
   projecao: 'projeção',
   config: 'ajustes',
 };
@@ -35,10 +38,11 @@ export default function App() {
   // navegador daria a resposta errada em três dias de cada mês.
   const [mes, setMes] = useState(null);
   const [cicloAtual, setCicloAtual] = useState(null);
+  const [ciclo, setCiclo] = useState(null);
 
   const [saldo, setSaldo] = useState(null);
   const [gastos, setGastos] = useState([]);
-  const [resumo, setResumo] = useState(null);
+  const [painel, setPainel] = useState(null);
   const [compromissos, setCompromissos] = useState(null);
   const [projecao, setProjecao] = useState([]);
   const [rendas, setRendas] = useState(null);
@@ -48,14 +52,17 @@ export default function App() {
   const [processando, setProcessando] = useState(false);
   const [erro, setErro] = useState('');
 
-  const [conf, setConf] = useState(null);        // gasto recém-registrado ou em edição
-  const [entradaConf, setEntradaConf] = useState(null); // entrada recém-registrada
+  const [conf, setConf] = useState(null);               // gasto registrado ou em edição
+  const [entradaConf, setEntradaConf] = useState(null); // entrada de renda registrada
   const [confSegundos, setConfSegundos] = useState(5);
-  const [sug, setSug] = useState(null);          // sugestão de compromisso recorrente
+  const [sug, setSug] = useState(null);                 // compromisso recorrente sugerido
 
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('todas');
   const [onboardando, setOnboardando] = useState(false);
+
+  const [avisoAberto, setAvisoAberto] = useState(false);
+  const [avisoDispensado, setAvisoDispensado] = useState(false);
 
   // -------------------------------------------------------------------------
   // Carga
@@ -63,25 +70,27 @@ export default function App() {
 
   const recarregar = useCallback(async (mesAlvo = mes) => {
     try {
-      const [s, g, r, c, p, rd] = await Promise.all([
+      const [s, g, p, c, pr, rd, jn] = await Promise.all([
         api.getSaldo(mesAlvo),
         api.getGastos(mesAlvo),
-        api.getResumo(mesAlvo),
+        api.getPainel(mesAlvo),
         api.getCompromissos(mesAlvo),
         api.getProjecao(6, mesAlvo),
         api.getRendas(mesAlvo),
+        api.getCiclo(mesAlvo),
       ]);
       setSaldo(s);
       setGastos(g);
-      setResumo(r);
+      setPainel(p);
       setCompromissos(c);
-      setProjecao(p);
+      setProjecao(pr);
       setRendas(rd);
+      setCiclo(jn);
       // Sem renda o saldo não significa nada: o onboarding é obrigatório.
       // Esta carga só ABRE o onboarding; quem fecha é o último passo ou o
-      // "pular" — senão salvar a renda no passo 1 já derrubaria os passos 2 e 3.
-      // Só dispara no mês corrente: navegar para um mês futuro sem renda
-      // cadastrada não é motivo para refazer a configuração inicial.
+      // "pular" — senão salvar a renda no passo 1 derrubaria os passos 2 e 3.
+      // Só dispara no ciclo corrente: um mês futuro sem renda não é motivo
+      // para refazer a configuração inicial.
       if (mesAlvo === cicloAtual) setOnboardando((aberto) => aberto || !s.renda_definida);
       setErro('');
     } catch (e) {
@@ -102,6 +111,53 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (mes) recarregar(mes); }, [mes, recarregar]);
+
+  // -------------------------------------------------------------------------
+  // Números derivados do dia
+  // -------------------------------------------------------------------------
+
+  // Quem faz estas contas é o backend (`gasto_hoje`, `ritmo_restante_hoje`):
+  // é ele que sabe a que ciclo o dia de hoje pertence.
+  const fatura = saldo ? saldo.fatura : null;
+  const gastoHoje = saldo ? saldo.gasto_hoje : 0;
+  const sobraHoje = saldo ? saldo.ritmo_restante_hoje ?? 0 : 0;
+  const estourou = saldo != null && sobraHoje < 0;
+  const avisar = fatura ? fatura.notificar : true;
+
+  // Quantos dias faltam para a fatura fechar (0 = fecha hoje). É o gatilho do
+  // aviso e a cor do cabeçalho — o resto do app não muda por causa disso.
+  const diasParaFechar = fatura && mes === cicloAtual ? fatura.dias_para_fechar : null;
+
+  useEffect(() => {
+    if (!avisar || diasParaFechar == null || diasParaFechar > 1) return undefined;
+    if (avisoDispensado || onboardando) return undefined;
+    const t = setTimeout(() => { setAvisoAberto(true); vibrar([10, 60, 10]); }, 900);
+    return () => clearTimeout(t);
+  }, [avisar, diasParaFechar, avisoDispensado, onboardando]);
+
+  // A fala do Minimau é gerada pelo estado, nunca texto fixo.
+  const { estadoMinimau, falaMinimau } = useMemo(() => {
+    if (processando) return { estadoMinimau: 'processando', falaMinimau: 'Interpretando o que você disse…' };
+    if (!saldo) return { estadoMinimau: 'inicializando', falaMinimau: 'Carregando seus números…' };
+    if (diasParaFechar != null && diasParaFechar <= 1) {
+      return {
+        estadoMinimau: 'alerta',
+        falaMinimau: `A fatura fecha ${diasParaFechar === 0 ? 'hoje' : 'amanhã'}. Já são ${fmt0(fatura.total_ciclo)} no ciclo.`,
+      };
+    }
+    if (estourou) {
+      return { estadoMinimau: 'alerta', falaMinimau: `Você passou ${fmt(Math.abs(sobraHoje))} do ritmo de hoje. Amanhã compensa.` };
+    }
+    if (gastoHoje === 0) {
+      return { estadoMinimau: 'escutando', falaMinimau: `Dia limpo até agora. Você tem ${fmt(sobraHoje)} pra hoje.` };
+    }
+    return {
+      estadoMinimau: 'acompanhando',
+      falaMinimau: `Gastou ${fmt(gastoHoje)} hoje — ainda sobram ${fmt(sobraHoje)} até meia-noite.`,
+    };
+  }, [processando, saldo, fatura, diasParaFechar, estourou, gastoHoje, sobraHoje]);
+
+  const corOlho = processando ? cor.atencao : estourou ? cor.alerta : cor.fosforo;
 
   // -------------------------------------------------------------------------
   // Entrada de lançamento
@@ -161,7 +217,6 @@ export default function App() {
     recarregar();
   };
 
-  // Fim da contagem ou "Ok" no card de entrada.
   const fecharEntrada = async (campos) => {
     const registro = entradaConf;
     setEntradaConf(null);
@@ -185,14 +240,11 @@ export default function App() {
     setSug(null);
     const dados = tipo === 'parcelamento'
       ? {
-          descricao: sugestao.descricao, valor_parcela: valor, total_parcelas: campo2,
-          parcela_inicial: sugestao.parcela_inicial || 1,
-          mes_inicio: sugestao.mes_inicio || mes, categoria: sugestao.categoria,
-        }
-      : {
-          descricao: sugestao.descricao, valor, dia_vencimento: campo2,
-          categoria: sugestao.categoria,
-        };
+        descricao: sugestao.descricao, valor_parcela: valor, total_parcelas: campo2,
+        parcela_inicial: sugestao.parcela_inicial || 1,
+        mes_inicio: sugestao.mes_inicio || mes, categoria: sugestao.categoria,
+      }
+      : { descricao: sugestao.descricao, valor, dia_vencimento: campo2, categoria: sugestao.categoria };
     try {
       await api.confirmarCompromisso(tipo, dados);
       vibrar([10, 30, 10]);
@@ -206,7 +258,6 @@ export default function App() {
   // Ações de lista
   // -------------------------------------------------------------------------
 
-  // Abre o card em modo edição (sem contagem regressiva).
   const editarGasto = (g) => { setConf(g); setConfSegundos(0); };
 
   const excluirGasto = async (g) => {
@@ -219,8 +270,7 @@ export default function App() {
   const quando = (iso) => {
     const [data, hora] = iso.split('T');
     const dia = Number(data.split('-')[2]);
-    const mesDoGasto = data.slice(0, 7);
-    if (mesDoGasto === api.hoje.mes) {
+    if (data.slice(0, 7) === api.hoje.mes) {
       if (dia === api.hoje.dia) return `hoje ${hora}`;
       if (dia === api.hoje.dia - 1) return `ontem ${hora}`;
     }
@@ -271,14 +321,35 @@ export default function App() {
     const blob = new Blob([api.csv(gastos)], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `gastos-${mes}.csv`;
+    a.download = `minimau-${mes}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
-  const removerEntradaRenda = async (id) => {
-    await api.removerRenda(id, mes);
-    recarregar();
+  const alternarAviso = async () => {
+    const novo = !avisar;
+    setAvisoDispensado(false);
+    if (!novo) setAvisoAberto(false);
+    try {
+      await api.definirAviso(novo);
+      recarregar();
+    } catch (e) {
+      setErro(e.message || 'Não consegui salvar essa preferência.');
+    }
+  };
+
+  // Mudar o fechamento reescreve a janela de todos os ciclos: o backend não
+  // grava a que mês cada gasto pertence, então o histórico se recalcula.
+  const salvarFechamento = async (dia) => {
+    try {
+      await api.definirFechamento(dia);
+      const c = await api.getCiclo();
+      setCicloAtual(c.ciclo_atual);
+      setMes(c.ciclo_atual);
+      await recarregar(c.ciclo_atual);
+    } catch (e) {
+      setErro(e.message || 'Não consegui mudar o dia de fechamento.');
+    }
   };
 
   const refazerOnboarding = async () => {
@@ -291,43 +362,78 @@ export default function App() {
   // Render
   // -------------------------------------------------------------------------
 
-  const cabecalhoEsq = `${mes ? nomeMes(mes).replace('/', ' / ') : '—'} — ${TITULOS[tela]}`;
-  const cabecalhoDir = saldo && saldo.renda_definida
-    ? `${Math.round(saldo.percentual_consumido)}% consumido`
-    : 'sem renda';
+  // "fatura em Nd" usa dias_restantes (que conta hoje) para bater com a régua
+  // da Home; os textos de véspera saem de dias_para_fechar, que não conta.
+  const rotuloCiclo = diasParaFechar == null
+    ? (mes ? nomeMes(mes) : '—')
+    : diasParaFechar === 0 ? 'fatura fecha hoje'
+      : diasParaFechar === 1 ? 'fatura fecha amanhã'
+        : `fatura em ${ciclo?.dias_restantes ?? saldo?.dias_restantes ?? diasParaFechar}d`;
+
+  const rotuloCategoria = (c) => ROTULO_CAT[c] || c;
+  const corBarra = (c) => corCategoria(c, LISTA_CAT);
 
   return (
-    <div className="relative h-full flex flex-col bg-papel text-tinta overflow-hidden">
-      {/* Ruído de papel: acima do conteúdo, abaixo dos cards. */}
-      <div className="ruido absolute inset-0 pointer-events-none z-40 opacity-45 mix-blend-multiply" />
+    <div style={{
+      position: 'relative', height: '100%', display: 'flex', flexDirection: 'column',
+      background: cor.fundo, color: cor.tinta, overflow: 'hidden',
+    }}
+    >
+      {/* Scanline: por cima de tudo, sem capturar toque. */}
+      <div className="scanline" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 41, opacity: 0.5 }} />
 
-      {/* Espaço da status bar do sistema (black-translucent a desenha por cima). */}
-      <div className="flex-none" style={{ height: 'max(14px, env(safe-area-inset-top))' }} />
+      {/* Espaço da status bar do sistema (black-translucent desenha por cima). */}
+      <div style={{ flex: 'none', height: 'max(12px, env(safe-area-inset-top))' }} />
 
       <header
-        className="flex justify-between items-center px-5 pt-[14px] pb-[10px] border-b-2 border-tinta font-mono text-[11px] tracking-[.16em] uppercase flex-none z-20 gap-[10px] whitespace-nowrap"
-        style={{ paddingLeft: 'max(20px, env(safe-area-inset-left))', paddingRight: 'max(20px, env(safe-area-inset-right))' }}
+        style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '13px 20px 11px', borderBottom: `1px solid ${cor.linhaFraca}`,
+          flex: 'none', zIndex: 20, gap: 10, whiteSpace: 'nowrap',
+          paddingLeft: 'max(20px, env(safe-area-inset-left))',
+          paddingRight: 'max(20px, env(safe-area-inset-right))',
+        }}
       >
-        <span className="overflow-hidden text-ellipsis">{cabecalhoEsq}</span>
-        <span className="opacity-55 flex-none">{cabecalhoDir}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, overflow: 'hidden' }}>
+          <Logo corOlho={corOlho} tamanho={22} />
+          <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: '.3em', textTransform: 'uppercase' }}>Minimau</span>
+          <span style={{
+            fontFamily: MONO, fontSize: 10, letterSpacing: '.14em', textTransform: 'uppercase',
+            opacity: 0.4, overflow: 'hidden', textOverflow: 'ellipsis',
+          }}
+          >
+            / {TITULOS[tela]}
+          </span>
+        </div>
+        <span style={{
+          fontFamily: MONO, fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase', flex: 'none',
+          color: diasParaFechar != null && diasParaFechar <= 1 ? cor.atencao : 'rgba(237,243,233,.45)',
+        }}
+        >
+          {rotuloCiclo}
+        </span>
       </header>
 
-      <main className="rolagem flex-1 overflow-y-auto overflow-x-hidden relative">
+      <main className="rolagem" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative' }}>
         {carregando ? (
-          <div className="px-5 pt-10 font-mono text-[12px] opacity-50 leading-[1.6]">
-            Lendo a folha…
+          <div style={{ padding: '40px 20px', fontFamily: MONO, fontSize: 11.5, opacity: 0.5, lineHeight: 1.7 }}>
+            Ligando o painel…
           </div>
         ) : (
           <>
             {tela === 'home' && (
               <Home
-                saldo={saldo} gastos={gastos} mes={mes} quando={quando}
+                saldo={saldo} gastos={gastos} gastoHoje={gastoHoje} sobraHoje={sobraHoje}
+                estado={estadoMinimau} fala={falaMinimau} corOlho={corOlho}
+                quando={quando} rotuloCategoria={rotuloCategoria} corBarra={corBarra}
                 aoEditar={editarGasto} aoExcluir={excluirGasto}
               />
             )}
-            {tela === 'resumo' && (
-              <Resumo
-                resumo={resumo} mes={mes} aoMudarMes={mudarMes}
+            {tela === 'painel' && (
+              <Painel
+                painel={painel} mes={mes} mesAnterior={painel ? painel.mes_anterior : mes}
+                aoMudarMes={mudarMes} diaHoje={api.hoje.dia}
+                rotuloCategoria={rotuloCategoria} corBarra={corBarra}
                 aoFiltrarCategoria={(c) => { setFiltro(c); setTela('historico'); }}
               />
             )}
@@ -335,6 +441,7 @@ export default function App() {
               <Historico
                 gastos={gastos} busca={busca} aoBuscar={setBusca}
                 filtro={filtro} aoFiltrar={setFiltro} quando={quando}
+                rotuloCategoria={rotuloCategoria} corBarra={corBarra}
                 aoEditar={editarGasto} aoExcluir={excluirGasto}
               />
             )}
@@ -345,13 +452,14 @@ export default function App() {
                 aoSalvar={salvarCompromisso} aoExcluir={excluirCompromisso}
               />
             )}
-            {tela === 'projecao' && (
-              <Projecao projecao={projecao} aoVoltar={() => setTela('compromissos')} />
-            )}
+            {tela === 'projecao' && <Projecao projecao={projecao} aoVoltar={() => setTela('compromissos')} />}
             {tela === 'config' && (
               <Ajustes
-                mes={mes} saldo={saldo} rendas={rendas}
-                aoSalvarRenda={salvarRenda} aoRemoverRenda={removerEntradaRenda}
+                mes={mes} saldo={saldo} ciclo={ciclo} rendas={rendas}
+                avisar={avisar} aoAlternarAviso={alternarAviso}
+                aoSalvarFechamento={salvarFechamento}
+                aoTestarAviso={() => { setTela('home'); setAvisoDispensado(false); setAvisoAberto(true); vibrar([10, 60, 10]); }}
+                aoSalvarRenda={salvarRenda} aoRemoverRenda={async (id) => { await api.removerRenda(id, mes); recarregar(); }}
                 aoTestarSaude={api.health}
                 aoExportar={exportarCsv} aoRefazer={refazerOnboarding}
               />
@@ -359,8 +467,20 @@ export default function App() {
           </>
         )}
         {/* Espaço para a barra fixa não cobrir o fim da lista. */}
-        <div className="h-[130px]" />
+        <div style={{ height: 136 }} />
       </main>
+
+      {avisoAberto && !onboardando && (
+        <Notificacao
+          titulo={diasParaFechar === 0
+            ? 'A fatura fecha hoje'
+            : diasParaFechar === 1 ? 'A fatura fecha amanhã' : `A fatura fecha em ${diasParaFechar} dias`}
+          texto={fatura
+            ? `Dia ${fatura.dia_fechamento} · ${fmt0(fatura.total_ciclo)} no ciclo · vence dia ${fatura.dia_vencimento}. Ainda dá tempo de segurar o que não é essencial.`
+            : ''}
+          aoFechar={() => { setAvisoAberto(false); setAvisoDispensado(true); }}
+        />
+      )}
 
       {erro && <FaixaErro texto={erro} aoFechar={() => setErro('')} />}
 
@@ -405,7 +525,7 @@ export default function App() {
       {onboardando && (
         <Onboarding
           mes={mes}
-          ciclo={saldo ? saldo.ciclo : null}
+          ciclo={ciclo}
           compromissos={compromissos}
           aoDefinirRenda={async (v) => { await api.definirRenda(v, mes); await recarregar(); }}
           aoAdicionarCompromisso={(tipo, dados) => salvarCompromisso(tipo, null, dados)}

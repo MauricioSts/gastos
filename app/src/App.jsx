@@ -59,10 +59,6 @@ export default function App() {
 
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('todas');
-  // Recorte de datas vindo do painel: tocar numa semana leva ao histórico já
-  // limitado àquela janela, que é a única forma de responder "de onde saiu
-  // esse total?" sem a pessoa somar linha por linha.
-  const [periodo, setPeriodo] = useState(null);
   const [onboardando, setOnboardando] = useState(false);
 
   const [avisoAberto, setAvisoAberto] = useState(false);
@@ -435,23 +431,15 @@ export default function App() {
             )}
             {tela === 'painel' && (
               <Painel
-                painel={painel} mes={mes} mesAnterior={painel ? painel.mes_anterior : mes}
-                aoMudarMes={mudarMes} diaHoje={api.hoje.dia}
+                painel={painel} mes={mes} aoMudarMes={mudarMes}
                 rotuloCategoria={rotuloCategoria} corBarra={corBarra}
-                aoFiltrarCategoria={(c) => { setFiltro(c); setPeriodo(null); setTela('historico'); }}
-                aoFiltrarSemana={(sem) => {
-                  setPeriodo({ inicio: sem.inicio, fim: sem.fim });
-                  setFiltro('todas');
-                  setBusca('');
-                  setTela('historico');
-                }}
+                aoFiltrarCategoria={(c) => { setFiltro(c); setTela('historico'); }}
               />
             )}
             {tela === 'historico' && (
               <Historico
                 gastos={gastos} busca={busca} aoBuscar={setBusca}
                 filtro={filtro} aoFiltrar={setFiltro} quando={quando}
-                periodo={periodo} aoLimparPeriodo={() => setPeriodo(null)}
                 rotuloCategoria={rotuloCategoria} corBarra={corBarra}
                 aoEditar={editarGasto} aoExcluir={excluirGasto}
               />

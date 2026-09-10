@@ -684,7 +684,7 @@ export async function getPainel(mes = hoje.mes) {
       .sort((a, b) => b.valor - a.valor),
     por_dia: porDia,
     por_semana: marcaSemanaAtual(porSemana),
-    top: [...gastos].sort((a, b) => b.valor - a.valor).slice(0, 3),
+    top: [...gastos].sort((a, b) => b.valor - a.valor).slice(0, 5),
     // Sem base no ciclo anterior a comparação seria ruído, então some.
     variacao: totalAnterior > 0 ? ((total - totalAnterior) / totalAnterior) * 100 : null,
     mes_anterior: anterior,

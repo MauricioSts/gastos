@@ -7,6 +7,7 @@ import { nomeMes } from '../../api';
 // respiro da tela, então ele fica sozinho, com espaço em volta.
 export default function Projecao({ projecao, aoVoltar }) {
   const maior = Math.max(1, ...projecao.map((m) => m.renda || m.comprometido));
+  const temEstimativa = projecao.some((m) => m.renda_estimada);
 
   return (
     <div style={{ padding: '16px 16px 10px' }}>
@@ -21,6 +22,12 @@ export default function Projecao({ projecao, aoVoltar }) {
       <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: 1.75, opacity: 0.5, marginBottom: 20 }}>
         A barra cheia é o que já está travado antes do mês começar. Quando uma
         parcela morre, o Minimau avisa.
+        {temEstimativa && (
+          <>
+            {' '}Mês marcado como <span style={{ color: cor.atencao }}>estimado</span> ainda
+            não tem renda lançada: a conta repete a última conhecida.
+          </>
+        )}
       </div>
 
       {projecao.length === 0 && (
@@ -39,14 +46,27 @@ export default function Projecao({ projecao, aoVoltar }) {
             }}
             >
               {nomeMes(m.mes)}
+              {m.renda_estimada && (
+                <span style={{
+                  marginLeft: 8, fontSize: 8.5, letterSpacing: '.14em', fontWeight: 400,
+                  color: cor.atencao, opacity: 0.85,
+                }}
+                >
+                  estimado
+                </span>
+              )}
             </span>
-            <span style={{ fontFamily: MONO, fontSize: 10, opacity: 0.45 }}>sobram {fmt0(m.sobra)}</span>
+            <span style={{ fontFamily: MONO, fontSize: 10, opacity: 0.45 }}>
+              {m.renda_estimada ? '≈ ' : ''}sobram {fmt0(m.sobra)}
+            </span>
           </div>
           <div style={{ position: 'relative', height: 22, borderRadius: 6, background: 'rgba(237,243,233,.07)', overflow: 'hidden' }}>
             <div style={{
               position: 'absolute', left: 0, top: 0, bottom: 0,
               width: `${Math.min(100, (m.comprometido / maior) * 100)}%`,
-              background: 'linear-gradient(90deg,rgba(155,255,59,.85),rgba(111,209,31,.55))',
+              background: m.renda_estimada
+                ? 'linear-gradient(90deg,rgba(155,255,59,.5),rgba(111,209,31,.3))'
+                : 'linear-gradient(90deg,rgba(155,255,59,.85),rgba(111,209,31,.55))',
             }}
             />
             <div style={{

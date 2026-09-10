@@ -200,11 +200,15 @@ function normalizaCompromissos(c) {
   };
 }
 
+// `renda_estimada` diz que aquele mês ainda não tem renda lançada: o backend
+// repetiu a última conhecida para conseguir projetar. A tela precisa dessa
+// distinção, senão a sobra de um mês futuro tem o mesmo peso da do mês atual.
 function normalizaProjecao(p) {
   return (p.projecao || []).map((m) => ({
     mes: m.mes_referencia,
     comprometido: m.comprometido_total,
     renda: m.renda_total,
+    renda_estimada: !!m.renda_estimada,
     sobra: m.sobra_projetada,
     termina: (m.parcelamentos_terminando || []).map((t) => t.descricao),
   }));
@@ -310,7 +314,15 @@ export async function getProjecao(meses = 6, mes = hoje.mes) {
     const anterior = compromissosMock(somaMes(db.hoje.mes, i - 1));
     const comprometido = [...fixas, ...parcelas].reduce((s, c) => s + c.valor, 0);
     const termina = anterior.parcelas.filter((p) => !parcelas.some((q) => q.id === p.id));
-    return { mes: m, comprometido, renda, sobra: renda - comprometido, termina: termina.map((t) => t.descricao) };
+    const lancada = db.rendas.some((r) => r.mes_referencia === m);
+    return {
+      mes: m,
+      comprometido,
+      renda,
+      renda_estimada: !lancada,
+      sobra: renda - comprometido,
+      termina: termina.map((t) => t.descricao),
+    };
   });
 }
 

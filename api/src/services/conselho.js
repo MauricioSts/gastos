@@ -6,8 +6,17 @@
 // o numero errado sai como recomendacao financeira. O modelo tem uma unica
 // tarefa: explicar em portugues o que a conta ja concluiu.
 const { chatTextoStream, ErroOllama } = require('./ollama');
-const { nomeMes } = require('../utils/data');
+const { nomeMes, mesSomar } = require('../utils/data');
+const ciclo = require('../utils/ciclo');
 const { normalizarValor } = require('../utils/validacao');
+
+// "2026-09-29" -> "29/09". O rotulo do ciclo ("out/2026") e jargao interno: quem
+// pergunta "quando eu posso comprar" quer a data em que pode comprar, e o ciclo
+// de outubro abre no dia 29 de setembro.
+const diaMes = (data) => {
+  const [, mes, dia] = String(data).split('-');
+  return `${dia}/${mes}`;
+};
 
 const real = (n) => (n === null || n === undefined
   ? '—'
@@ -24,6 +33,8 @@ const PROMPT_SISTEMA = `Consultor financeiro de um app de gastos brasileiro.
 
 - A decisao ja foi dada ao usuario. Escreva SO o motivo dela, em UMA frase curta.
 - Nao repita a decisao, o mes nem o numero de parcelas: isso ja esta na tela.
+- Nao repita que nao cabe agora: isso tambem ja foi dito. Diga o NUMERO que causa
+  isso, ou o que muda no mes indicado.
 - Use SO os numeros da lista. Nunca calcule nem invente valor.
 - Portugues brasileiro, sem emoji, sem rotulo ("Decisao:", "Motivo:").
 - Trate a pessoa por voce, mas nunca comece a frase com "Voce,".
@@ -196,16 +207,26 @@ function fraseDoVeredito(a) {
   }
   const parc = a.parcelado_pedido?.cabe ? a.parcelado_pedido : a.parcelado_sugerido;
   if (parc) {
-    return `À vista não cabe, mas em ${parc.parcelas}x de ${real(parc.valor_parcela)} cabe, começando neste ciclo.`;
+    return `Dá para comprar hoje, em ${parc.parcelas}x de ${real(parc.valor_parcela)}: a parcela cabe em cada um dos ${parc.parcelas} meses. À vista, não.`;
   }
   // Ordem pelo veredito, nao pela ordem dos campos: quando o parcelamento
   // comeca antes do mes em que daria a vista, e ele a resposta.
   if (a.esperar_ate && a.veredito !== 'cabe_parcelado_depois') {
-    return `À vista faltam ${real(Math.abs(a.a_vista.sobra_depois))} de folga: dá em ${nomeMes(a.esperar_ate.mes_referencia)}, quando a folga do mês chega a ${real(a.esperar_ate.folga_util)}.`;
+    const janela = ciclo.janela(a.esperar_ate.mes_referencia);
+    return `Agora faltam ${real(Math.abs(a.a_vista.sobra_depois))} de folga. Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(a.esperar_ate.mes_referencia)}, quando a folga do mês chega a ${real(a.esperar_ate.folga_util)}.`;
   }
   if (a.parcelado_a_partir) {
     const ap = a.parcelado_a_partir;
-    return `Começando em ${nomeMes(ap.mes_inicio)} dá para pagar em ${ap.parcelas}x de ${real(ap.valor_parcela)}; neste ciclo, nem parcelado.`;
+    const janela = ciclo.janela(ap.mes_inicio);
+    const inicio = `Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(ap.mes_inicio)}: ${ap.parcelas}x de ${real(ap.valor_parcela)}.`;
+    // Por que nao antes: com o parcelamento comecando no ciclo seguinte, o
+    // impedimento e o ciclo aberto e da para dizer a data exata. Mais adiante, o
+    // impedimento e a folga de algum mes do meio -- afirmar "por causa deste
+    // ciclo" ali seria falso.
+    const proximo = mesSomar(a.retrato.mes_referencia, 1) === ap.mes_inicio;
+    return proximo
+      ? `${inicio} Neste ciclo não, porque ele fecha em ${diaMes(ciclo.janela(a.retrato.mes_referencia).fim)} e a folga dele já está negativa.`
+      : `${inicio} Começando mais cedo, alguma das parcelas cairia num mês sem folga para ela.`;
   }
   if (a.juntando && a.juntando.meses) {
     return `${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado: guardando ${real(a.juntando.por_mes)} por mês, dá em ${a.juntando.meses} ${a.juntando.meses === 1 ? 'mês' : 'meses'}.`;

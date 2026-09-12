@@ -46,6 +46,14 @@ const SINAL = {
   contexto: '◍',
 };
 
+// "2026-09-29" -> "29/09". O rótulo do ciclo é jargão: o ciclo de out/2026 abre
+// no dia 29 de setembro, e é a data que responde "a partir de quando".
+const diaMes = (data) => {
+  if (!data) return null;
+  const [, mes, dia] = String(data).split('-');
+  return `${dia}/${mes}`;
+};
+
 // Linha de número: rótulo à esquerda, valor à direita, sem caixa. Usado para a
 // decomposição da conta — é o que sustenta o veredito.
 function Linha({ texto, valor, corValor, forte }) {
@@ -118,7 +126,9 @@ function Conta({ a }) {
       {a.parcelado_a_partir && (
         <Linha
           texto={`Em ${a.parcelado_a_partir.parcelas}× de ${fmt0(a.parcelado_a_partir.valor_parcela)}, a partir de`}
-          valor={nomeMes(a.parcelado_a_partir.mes_inicio)}
+          valor={a.parcelado_a_partir.primeiro_dia
+            ? `${diaMes(a.parcelado_a_partir.primeiro_dia)} · ${nomeMes(a.parcelado_a_partir.mes_inicio)}`
+            : nomeMes(a.parcelado_a_partir.mes_inicio)}
           corValor={cor.atencao}
           forte
         />
@@ -140,8 +150,10 @@ function Conta({ a }) {
           linhas parecem se contradizer. */}
       {a.esperar_ate && (
         <Linha
-          texto="Cabe de uma vez em"
-          valor={nomeMes(a.esperar_ate.mes_referencia)}
+          texto="Cabe de uma vez a partir de"
+          valor={a.esperar_ate.primeiro_dia
+            ? `${diaMes(a.esperar_ate.primeiro_dia)} · ${nomeMes(a.esperar_ate.mes_referencia)}`
+            : nomeMes(a.esperar_ate.mes_referencia)}
           corValor={cor.atencao}
           forte
         />

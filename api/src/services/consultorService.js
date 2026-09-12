@@ -220,7 +220,13 @@ function parceladoAPartirDe(foto, valor, preferidas = PARCELAS_USUAIS) {
     for (const n of preferidas) {
       if (inicio + n > linha.length) continue;
       const t = testarParcelamento(foto, valor, n, inicio);
-      if (t.cabe) return { ...t, mes_inicio: linha[inicio].mes_referencia };
+      if (t.cabe) {
+        const mesInicio = linha[inicio].mes_referencia;
+        // A data em que a compra pode ser feita, nao so o rotulo do ciclo: o
+        // ciclo "out/2026" abre em 29/09, e foi exatamente isso que o usuario
+        // nao entendeu na resposta.
+        return { ...t, mes_inicio: mesInicio, primeiro_dia: ciclo.janela(mesInicio).inicio };
+      }
     }
   }
   return null;
@@ -231,7 +237,12 @@ function primeiroMesQueCabe(foto, valor) {
   for (const m of foto.meses_futuros) {
     const util = folgaUtil(m.folga);
     if (util !== null && util >= valor) {
-      return { mes_referencia: m.mes_referencia, folga_util: util, sobra_depois: emCentavos(util - valor) };
+      return {
+        mes_referencia: m.mes_referencia,
+        primeiro_dia: ciclo.janela(m.mes_referencia).inicio,
+        folga_util: util,
+        sobra_depois: emCentavos(util - valor),
+      };
     }
   }
   return null;

@@ -816,7 +816,7 @@ Resposta:
   "tipo": "compra",
   "veredito": "esperar",
   "titulo": "Melhor esperar.",
-  "texto": "Começando em out/2026 dá para pagar em 3x de R$ 100,00; neste ciclo, nem parcelado. O seu ritmo de gasto atual já consome o que sobrou da renda.",
+  "texto": "Dá a partir de 29/09, na fatura de out/2026: 3x de R$ 100,00. Neste ciclo não, porque ele fecha em 28/09 e a folga dele já está negativa. O seu ritmo de gasto atual já consome o que sobrou da renda.",
   "modelo": "qwen2.5:3b",
   "prosa": true,
   "analise": {
@@ -825,8 +825,8 @@ Resposta:
     "a_vista": { "cabe": false, "folga_util": -16.55, "sobra_depois": -316.55 },
     "parcelado_pedido": null,
     "parcelado_sugerido": null,
-    "parcelado_a_partir": { "mes_inicio": "2026-10", "parcelas": 3,
-                            "valor_parcela": 100, "meses_afetados": [] },
+    "parcelado_a_partir": { "mes_inicio": "2026-10", "primeiro_dia": "2026-09-29",
+                            "parcelas": 3, "valor_parcela": 100, "meses_afetados": [] },
     "dentro_do_ritmo": { "cabe": false, "cabe_hoje": 23.58, "gasto_hoje": 0 },
     "esperar_ate": { "mes_referencia": "2027-01", "folga_util": 526.97 },
     "juntando": { "meses": 2, "mes_referencia": "2026-11", "por_mes": 150 },
@@ -1137,6 +1137,7 @@ reais deste banco.
 | "VEREDITO: cabe parcelado…" / "Decisão: …" | modelo pequeno copia o formato do que lê | rótulo proibido no prompt e removido do início da frase no código |
 | "junta em 5 meses" misturado com "parcele em 10x" | duas alternativas competindo no mesmo briefing | com saída parcelada decidida, a linha de juntar dinheiro sai |
 | "cabendo nos próximos 10 meses" — sem dizer o mês, três respostas diferentes para a mesma pergunta | pedir ao modelo que repita o dado decisivo | mês, parcelas e valor saem de `fraseDoVeredito`, em JavaScript, e são a primeira frase da resposta |
+| "Começando em out/2026 …; neste ciclo, nem parcelado" — o usuário perguntou de volta "então em outubro eu posso comprar?" | `out/2026` é rótulo interno, e a frase dizia o "não" duas vezes | a frase dá a **data** (`Dá a partir de 29/09, na fatura de out/2026`), diz por que não antes, e `primeiro_dia` foi para a API e para a tela |
 | frases telegráficas do tipo "Folga negativa, ciclo estourado" | o modelo copiava o estilo de rótulo do briefing | três exemplos de frase boa no `PROMPT_SISTEMA` — que é cacheado pelo Ollama, então custa tempo só na primeira pergunta |
 
 ## Solução de problemas

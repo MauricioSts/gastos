@@ -23,6 +23,12 @@ const config = {
   // o mesmo modelo: trocar para 7b aqui melhora a prosa e custa ~2x o tempo.
   ollamaModelConselho: process.env.OLLAMA_MODEL_CONSELHO || process.env.OLLAMA_MODEL || 'qwen2.5:7b',
   ollamaTimeoutMs: num('OLLAMA_TIMEOUT_MS', 90000),
+  // Frase extra de prosa no consultor, escrita pelo modelo. Desligada por
+  // padrao: a decisao e o motivo sao calculados e exatos, e a frase do modelo
+  // custava 3 a 10s e chegou a inventar compromisso que nao existe ("a parcela
+  // do cartao de credito") e a negar o proprio veredito. CONSELHO_PROSA=1
+  // religa, para comparar.
+  conselhoProsa: process.env.CONSELHO_PROSA === '1',
   // Caminho do arquivo SQLite (relativo resolve a partir da raiz do projeto).
   dbPath: path.resolve(__dirname, '..', process.env.DB_PATH || 'data/gastos.db'),
   apiToken: process.env.API_TOKEN || '',

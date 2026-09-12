@@ -6,6 +6,7 @@
 // o numero errado sai como recomendacao financeira. O modelo tem uma unica
 // tarefa: explicar em portugues o que a conta ja concluiu.
 const { chatTextoStream, ErroOllama } = require('./ollama');
+const config = require('../config');
 const { nomeMes, mesSomar } = require('../utils/data');
 const ciclo = require('../utils/ciclo');
 const { normalizarValor } = require('../utils/validacao');
@@ -76,6 +77,9 @@ function briefingCompra(a, pergunta) {
   const linhas = [
     `Pergunta: "${pergunta}"`,
     `Compra: ${real(a.valor)}`,
+    ...(a.reserva
+      ? [`A pessoa pediu para manter ${real(a.reserva)} livres por mes. Todas as folgas abaixo ja descontam esse piso, e neste ciclo ele vale ${real(a.reserva_no_ciclo)} pelo que falta dele.`]
+      : []),
     `Ciclo ${nomeMes(f.mes_referencia)}, faltam ${f.dias_restantes} dias para a fatura fechar.`,
     // Disponivel negativo tambem nao vai com sinal, pela mesma razao da folga:
     // o modelo le "R$ -100,00" e escreve "voce tem R$ 100,00 disponiveis".
@@ -194,6 +198,16 @@ function briefing(analise, pergunta) {
 //
 // Tambem e a resposta inteira quando o Ollama esta fora do ar: o app nunca fica
 // sem conselho, so sem a justificativa em prosa.
+// Sufixo do piso. Se a pessoa pediu para manter um valor livre por mes, a
+// resposta tem de dizer que a conta foi feita COM esse piso -- senao o numero de
+// parcelas parece ignorar o que ela pediu, que foi exatamente a reclamacao.
+const comPiso = (frase, a) => {
+  const limpa = frase.replace(/\.$/, '');
+  return a.reserva
+    ? `${limpa}, mantendo os ${real(a.reserva)} livres por mês.`
+    : `${limpa}.`;
+};
+
 function fraseDoVeredito(a) {
   if (a.tipo !== 'compra') {
     return `Você pode gastar ${real(a.retrato.cabe_hoje)} hoje sem estourar o seu ritmo de ${real(a.retrato.media_diaria)} por dia.`;
@@ -203,35 +217,85 @@ function fraseDoVeredito(a) {
     return `Cabe: ${real(a.valor)} entra no gasto de hoje, que ainda tem ${real(a.dentro_do_ritmo.cabe_hoje)} de espaço.`;
   }
   if (a.veredito === 'cabe_agora') {
-    return `Cabe agora: depois de gastar ${real(a.valor)} ainda sobram ${real(a.a_vista.sobra_depois)} de folga no ciclo.`;
+    return comPiso(`Cabe agora: depois de gastar ${real(a.valor)} ainda sobram ${real(a.a_vista.sobra_depois)} de folga no ciclo`, a);
   }
   const parc = a.parcelado_pedido?.cabe ? a.parcelado_pedido : a.parcelado_sugerido;
   if (parc) {
-    return `Dá para comprar hoje, em ${parc.parcelas}x de ${real(parc.valor_parcela)}: a parcela cabe em cada um dos ${parc.parcelas} meses. À vista, não.`;
+    return `${comPiso(`Dá para comprar hoje, em ${parc.parcelas}x de ${real(parc.valor_parcela)}: a parcela cabe em cada um dos ${parc.parcelas} meses`, a)} À vista, não.`;
   }
   // Ordem pelo veredito, nao pela ordem dos campos: quando o parcelamento
   // comeca antes do mes em que daria a vista, e ele a resposta.
   if (a.esperar_ate && a.veredito !== 'cabe_parcelado_depois') {
     const janela = ciclo.janela(a.esperar_ate.mes_referencia);
-    return `Agora faltam ${real(Math.abs(a.a_vista.sobra_depois))} de folga. Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(a.esperar_ate.mes_referencia)}, quando a folga do mês chega a ${real(a.esperar_ate.folga_util)}.`;
+    return comPiso(`Agora faltam ${real(Math.abs(a.a_vista.sobra_depois))} de folga. Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(a.esperar_ate.mes_referencia)}, quando a folga do mês chega a ${real(a.esperar_ate.folga_util)}`, a);
   }
   if (a.parcelado_a_partir) {
     const ap = a.parcelado_a_partir;
     const janela = ciclo.janela(ap.mes_inicio);
-    const inicio = `Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(ap.mes_inicio)}: ${ap.parcelas}x de ${real(ap.valor_parcela)}.`;
+    const inicio = comPiso(`Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(ap.mes_inicio)}: ${ap.parcelas}x de ${real(ap.valor_parcela)}`, a);
     // Por que nao antes: com o parcelamento comecando no ciclo seguinte, o
     // impedimento e o ciclo aberto e da para dizer a data exata. Mais adiante, o
     // impedimento e a folga de algum mes do meio -- afirmar "por causa deste
     // ciclo" ali seria falso.
     const proximo = mesSomar(a.retrato.mes_referencia, 1) === ap.mes_inicio;
+    // Por que nao antes, com o mes e o valor exatos: um mes mais cedo, a parcela
+    // estoura em tal mes por tanto. Calculado, nunca redigido pelo modelo -- foi
+    // aqui que ele inventou "a parcela do cartao de credito".
+    if (ap.bloqueio) {
+      const alvo = proximo && ap.bloqueio.mes_referencia === a.retrato.mes_referencia
+        ? `neste ciclo, que fecha em ${diaMes(ciclo.janela(a.retrato.mes_referencia).fim)},`
+        : `em ${nomeMes(ap.bloqueio.mes_referencia)}`;
+      return `${inicio} Um mês mais cedo não dá: ${alvo} faltariam ${real(ap.bloqueio.faltam)} para essa parcela.`;
+    }
     return proximo
       ? `${inicio} Neste ciclo não, porque ele fecha em ${diaMes(ciclo.janela(a.retrato.mes_referencia).fim)} e a folga dele já está negativa.`
       : `${inicio} Começando mais cedo, alguma das parcelas cairia num mês sem folga para ela.`;
   }
+  const condicao = a.reserva ? `mantendo ${real(a.reserva)} livres por mês, ` : '';
   if (a.juntando && a.juntando.meses) {
-    return `${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado: guardando ${real(a.juntando.por_mes)} por mês, dá em ${a.juntando.meses} ${a.juntando.meses === 1 ? 'mês' : 'meses'}.`;
+    return `${condicao ? condicao.charAt(0).toUpperCase() + condicao.slice(1) : ''}${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado: guardando ${real(a.juntando.por_mes)} por mês, dá em ${a.juntando.meses} ${a.juntando.meses === 1 ? 'mês' : 'meses'}.`;
   }
-  return `${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado nem guardando a folga inteira.`;
+  return `${condicao ? condicao.charAt(0).toUpperCase() + condicao.slice(1) : ''}${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado nem guardando a folga inteira.`;
+}
+
+// Segunda frase, tambem calculada: o numero que sustenta a decisao. Existe pela
+// mesma razao que a primeira -- pedida ao qwen2.5:3b, esta frase saia com nome de
+// compromisso inventado ("a parcela do cartao de credito", "a parcela do
+// notebook sairá da minha conta") ou negando o proprio veredito.
+function motivoDoVeredito(a) {
+  const f = a.retrato;
+  const fecha = diaMes(ciclo.janela(f.mes_referencia).fim);
+
+  if (a.tipo !== 'compra') {
+    return `O ciclo fecha em ${fecha} e o seu ritmo até lá ainda consome ${real(f.necessidade_ate_fechar)} dos ${real(f.disponivel)} disponíveis.`;
+  }
+  if (a.veredito === 'sem_renda') return '';
+
+  // Uma frase por veredito, e so uma: duas explicacoes juntas foram o que fez a
+  // resposta parecer contraditoria ("faltam R$ 102,93" seguido de "sobram
+  // R$ 17,07" -- numeros de contas diferentes na mesma resposta).
+  if (a.veredito === 'cabe_no_ritmo') {
+    return `Isso não mexe na folga do ciclo: é gasto do dia, dentro do seu ritmo de ${real(f.media_diaria)} por dia.`;
+  }
+  if (a.veredito === 'cabe_agora') {
+    return `A folga deste ciclo é ${real(a.a_vista.folga_util)}, já descontando os ${real(f.necessidade_ate_fechar)} que o seu ritmo consome até ${fecha}.`;
+  }
+  if (a.veredito === 'nao_cabe') {
+    return a.melhor_mes
+      ? `O mês mais folgado dos próximos 12 é ${nomeMes(a.melhor_mes.mes_referencia)}, e mesmo nele sobram só ${real(a.melhor_mes.folga_util)}.`
+      : '';
+  }
+
+  // Parcelado ou espera: a informacao que muda a decisao e a parcela que esta
+  // acabando. Quando nao ha nenhuma, explica o que consome a folga de hoje.
+  const alivio = a.alivios[0];
+  if (alivio) {
+    return `Em ${nomeMes(alivio.mes_referencia)} acaba a última parcela de ${alivio.itens.map((i) => i.descricao).join(', ')}, o que devolve ${real(alivio.valor)} por mês de folga.`;
+  }
+  if (a.reserva) {
+    return `Garantindo os ${real(a.reserva)} livres por mês, sobram ${real(a.a_vista.folga_util)} neste ciclo para uma compra nova.`;
+  }
+  return `O seu ritmo de ${real(f.media_diaria)} por dia ainda consome ${real(f.necessidade_ate_fechar)} até ${fecha}, e é isso que aperta a folga de agora.`;
 }
 
 // -------------------------------------------------------------------------
@@ -364,10 +428,15 @@ async function escrever({ analise, pergunta, aoPedaco, sinal }) {
     if (aoPedaco) aoPedaco(frase);
   };
 
-  // A decisao, antes de qualquer token de modelo.
-  const decisao = `${fraseDoVeredito(analise)} `;
-  emitido += decisao;
-  if (aoPedaco) aoPedaco(decisao);
+  // A resposta inteira, calculada: decisao + motivo. Sai antes de qualquer token
+  // de modelo, em microssegundos.
+  const motivo = motivoDoVeredito(analise);
+  const calculada = `${fraseDoVeredito(analise)}${motivo ? ` ${motivo}` : ''} `;
+  emitido += calculada;
+  if (aoPedaco) aoPedaco(calculada);
+
+  // Prosa do modelo e opcional e vem desligada: ver config.conselhoProsa.
+  if (!config.conselhoProsa) return { texto: emitido.trim(), modelo: null, prosa: false };
 
   const portao = (pedaco) => {
     if (reprovou || doModelo) return;
@@ -416,7 +485,7 @@ async function escrever({ analise, pergunta, aoPedaco, sinal }) {
 }
 
 module.exports = {
-  escrever, briefing, fraseDoVeredito,
+  escrever, briefing, fraseDoVeredito, motivoDoVeredito,
   numerosConferem, numerosDe, mesesConferem, mesesDe,
   VEREDITOS,
 };

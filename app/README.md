@@ -210,20 +210,27 @@ A tela é montada em duas ondas, e essa é a decisão de projeto central:
 | Onda | O que é | Quando chega |
 |---|---|---|
 | Veredito + a conta | Aritmética no backend | ~200ms |
-| A frase da resposta (mês, parcelas, valor) | Calculada no backend, não passa pelo modelo | com o veredito |
-| O motivo | Texto do LLM local, em streaming | ~3s com o modelo quente |
+| A resposta escrita (decisão + motivo) | Calculada no backend, não passa pelo modelo | com o veredito |
+| Frase extra do modelo local | Opcional, desligada por padrão (`CONSELHO_PROSA=1` na API) | +3s |
 
 O cartão de veredito (com cor e sinal próprios por resultado) aparece
 praticamente na hora e o texto vai aparecendo escrito abaixo. Esperar o texto
 para mostrar tudo junto transformaria uma resposta instantânea em dez segundos
 de tela parada.
 
-A primeira frase do texto **não vem do modelo**: mês, número de parcelas e valor
-da parcela são calculados no backend e chegam junto com o veredito. O modelo
-escreve só a frase do motivo, depois. Foi um teste que forçou isso: perguntado
-"em que mês eu poderei comprar um fone de 1600 e em quantas parcelas?", o modelo
-local respondeu três vezes de três jeitos, uma sem o mês e uma sem o ano, mesmo
-com o dado na frente dele.
+O texto **não vem do modelo**: decisão (data, parcelas, valor da parcela) e
+motivo (o mês exato que bloqueia, quanto falta nele) são calculados no backend e
+chegam junto com o veredito, em ~10ms. Dois testes forçaram isso. Perguntado "em
+que mês eu poderei comprar um fone de 1600 e em quantas parcelas?", o modelo local
+respondeu três vezes de três jeitos, uma sem o mês e uma sem o ano, com o dado na
+frente dele. E ao explicar o porquê, ele citava compromissos que não existem ("a
+parcela do cartão de crédito") ou negava o próprio veredito.
+
+A restrição também é lida da pergunta: *"quero ter pelo menos 700 reais no mês
+para gastar livre"* muda a conta inteira — a folga de cada mês passa a ser renda
+menos comprometido menos os 700 — e a resposta diz que respeitou o piso. Para o
+mesmo fone de R$ 1.600: sem piso, `6x de R$ 266,67 a partir de 29/09`; com os
+R$ 700 livres, `10x de R$ 160,00 a partir de 29/10`.
 
 Nada é recalculado no cliente: os valores exibidos vêm do mesmo cálculo que
 gerou o veredito, para a tela não conseguir divergir dele. E o modelo local não

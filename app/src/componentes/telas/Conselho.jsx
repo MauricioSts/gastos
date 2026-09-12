@@ -101,6 +101,16 @@ function Conta({ a }) {
         forte
       />
 
+      {/* O piso pedido na pergunta: sem esta linha a pessoa não vê que a conta
+          foi feita com a restrição dela. */}
+      {a.reserva != null && (
+        <Linha
+          texto="Mantendo livre por mês"
+          valor={`R$ ${fmt(a.reserva)}`}
+          corValor={cor.atencao}
+        />
+      )}
+
       {a.tipo === 'compra' && (
         <>
           <Linha texto="Compra" valor={`R$ ${fmt(a.valor)}`} />

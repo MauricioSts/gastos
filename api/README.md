@@ -217,6 +217,7 @@ Todas documentadas em `.env.example`.
 | `OLLAMA_URL` | `http://localhost:11434` | Endereço do Ollama local |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | Modelo usado na extração. O `qwen2.5:7b` continua funcionando e é ~2x mais lento |
 | `OLLAMA_MODEL_CONSELHO` | vazio (usa `OLLAMA_MODEL`) | Modelo que escreve o conselho do consultor. Separado porque as duas tarefas têm exigências opostas: extração precisa de latência baixa (a pessoa espera para lançar um gasto), conselho roda em streaming e ganha mais com texto melhor |
+| `CONSELHO_PROSA` | `0` | `1` acrescenta ao consultor uma frase escrita pelo modelo. Desligada: a decisão e o motivo são calculados, exatos e instantâneos, e a frase do modelo custava 3 a 10s e chegou a inventar compromisso inexistente |
 | `OLLAMA_TIMEOUT_MS` | `90000` | Timeout da inferência (a extração leva ~15s com o modelo quente; a primeira chamada após mudar o prompt do sistema paga o *prompt eval* inteiro e pode passar de 45s) |
 | `TZ_APP` | `America/Sao_Paulo` | Fuso usado para "hoje" e "ontem" |
 | `CICLO_DIA_FECHAMENTO` | `28` | Dia em que a fatura fecha. Gasto feito depois dele já é do ciclo seguinte |
@@ -771,10 +772,10 @@ Toda resposta de erro é JSON com o campo `erro`.
 
 Duas rotas para a mesma pergunta: "quando vale a pena comprar X por Y?".
 
-A análise é conta de banco e volta em milissegundos. **A frase que dá a resposta
-também**: mês, número de parcelas e valor da parcela são escritos por
-`fraseDoVeredito`, em JavaScript, e são sempre a primeira frase do `texto`. O
-modelo local escreve só a frase seguinte, o motivo.
+A resposta inteira é calculada e volta em **~10ms**: `fraseDoVeredito` escreve a
+decisão (data, número de parcelas, valor da parcela) e `motivoDoVeredito` escreve
+o motivo (o mês exato que bloqueia, quanto falta nele). Nenhuma das duas passa
+pelo modelo.
 
 Essa divisão não é estética. Perguntado *"em que mês eu poderei comprar um fone
 de 1600 e em quantas parcelas?"*, o `qwen2.5:3b` respondeu três vezes seguidas de
@@ -783,8 +784,16 @@ uma vez com o mês certo. O briefing tinha o dado nas três. Pedir ao modelo que
 repita um número é apostar que ele repita; o dado que responde à pergunta não
 pode ser aposta.
 
-Por isso existe também a versão em streaming: o primeiro `pedaco` é a frase
-calculada e sai antes de o modelo ser chamado.
+O motivo saiu do modelo pela mesma razão, uma versão depois: pedida a ele, a
+frase vinha com compromisso inventado (*"a parcela do cartão de crédito"*, *"a
+parcela do notebook sairá da minha conta"* — nenhum dos dois no briefing) ou
+negando o próprio veredito (*"a parcela de R$ 160,00 não cabe no seu orçamento
+desse mês"* logo abaixo de "cabe a partir de nov/2026").
+
+A prosa do modelo continua no código, atrás de `CONSELHO_PROSA=1`, para comparar:
+ela acrescenta uma frase, 3 a 10s de espera e o risco acima. Desligada, o
+consultor responde em 10ms e o Ollama segue fazendo o que ele faz bem neste
+projeto — interpretar o lançamento de gasto em linguagem natural.
 
 ### `POST /api/consultor` — resposta fechada (JSON)
 
@@ -802,6 +811,27 @@ Campos aceitos:
 | `mes` | não | Ciclo de referência `YYYY-MM` (padrão: ciclo aberto) |
 | `valor` | não | Preço, quando o app já o tem; tem prioridade sobre a frase |
 | `parcelas` | não | Número de parcelas a testar; idem |
+| `reserva` | não | Piso de gasto livre por mês; idem |
+
+**Piso de gasto livre.** *"quero ter pelo menos 700 reais no mês para gastar
+livre"*, *"deixando 500 livres por mês"*, *"mantendo 1 mil livre"* — o número é
+lido da frase e passa a ser a base da conta: a folga de cada mês vira *renda −
+comprometido − piso*, e a margem de segurança de 15% sai, porque o piso já é a
+folga que a pessoa pediu. No ciclo aberto o piso é proporcional ao que falta dele
+(no dia 12 de um ciclo de 31, exigir os 700 inteiros do que resta seria errado).
+
+Sem isso a restrição era ignorada em silêncio: para o mesmo fone de R$ 1.600, a
+resposta era `6x de R$ 266,67 a partir de out/2026` — que consome exatamente o
+dinheiro que a pessoa pediu para preservar. Com o piso de 700: `10x de R$ 160,00
+a partir de nov/2026`. O número do piso também é retirado da frase antes da
+leitura do preço, senão *"pelo menos 2000 livres"* num fone de 1.600 faria o preço
+virar 2.000 — o preço é o maior número da frase.
+
+Parcela sugerida pelo próprio backend nunca fica abaixo de **R$ 50**
+(`PARCELA_MINIMA`): sem esse piso a busca "achava jeito" de aprovar qualquer
+coisa esticando as parcelas, e uma compra de R$ 120 saía como *"10x de R$ 12,00"*.
+Parcelamento **pedido** pelo usuário não passa por essa regra — se ele pediu 12x,
+o trabalho é responder sobre 12x.
 
 O valor e o número de parcelas são lidos da própria frase quando não vêm no
 corpo — `"6x de 90"` vira R$ 540 em 6 parcelas, `"um monitor de 1.200,00"` vira
@@ -1074,10 +1104,10 @@ Medições nesta VM com `qwen2.5:3b` quente:
 
 | Etapa | Tempo |
 |---|---|
-| Análise completa (veredito, meses, folgas) | **~50ms** — é só SQLite e aritmética |
-| Frase da decisão (mês, parcelas, valor) | **~1ms** — é JavaScript, não passa pelo modelo |
-| Motivo em prosa, modelo quente | ~3s |
-| Motivo em prosa, primeira pergunta após reiniciar | ~10 a 17s |
+| Análise completa (veredito, meses, folgas) | ~50ms — é só SQLite e aritmética |
+| Decisão + motivo, calculados | **~10ms** — é o padrão |
+| Frase extra do modelo (`CONSELHO_PROSA=1`), quente | +3s |
+| Frase extra do modelo, primeira pergunta após reiniciar | +10 a 17s |
 
 Medido nesta VM (4 vCPU, sem GPU) com o prompt inteiro em 440 tokens:
 
@@ -1139,6 +1169,8 @@ reais deste banco.
 | "cabendo nos próximos 10 meses" — sem dizer o mês, três respostas diferentes para a mesma pergunta | pedir ao modelo que repita o dado decisivo | mês, parcelas e valor saem de `fraseDoVeredito`, em JavaScript, e são a primeira frase da resposta |
 | "Começando em out/2026 …; neste ciclo, nem parcelado" — o usuário perguntou de volta "então em outubro eu posso comprar?" | `out/2026` é rótulo interno, e a frase dizia o "não" duas vezes | a frase dá a **data** (`Dá a partir de 29/09, na fatura de out/2026`), diz por que não antes, e `primeiro_dia` foi para a API e para a tela |
 | frases telegráficas do tipo "Folga negativa, ciclo estourado" | o modelo copiava o estilo de rótulo do briefing | três exemplos de frase boa no `PROMPT_SISTEMA` — que é cacheado pelo Ollama, então custa tempo só na primeira pergunta |
+| "a parcela do cartão de crédito", "a parcela do notebook sairá da minha conta" — compromissos que não existem | o modelo preenchendo o "por quê" com o que soa plausível | o motivo passou a ser calculado (`motivoDoVeredito`), e a prosa do modelo ficou atrás de `CONSELHO_PROSA=1` |
+| "a parcela de R$ 160,00 não cabe no seu orçamento desse mês" logo depois de "cabe a partir de nov/2026" | o modelo negando o veredito que acabou de receber | idem — nenhuma frase da resposta depende mais dele |
 
 ## Solução de problemas
 

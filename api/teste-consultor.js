@@ -22,9 +22,12 @@ for (const sufixo of ['', '-shm', '-wal']) {
 }
 
 const compromissos = require('./src/services/compromissosService');
-const { analisarCompra, retrato } = require('./src/services/consultorService');
+const { analisarCompra, retrato, lerCompra } = require('./src/services/consultorService');
 const gastos = require('./src/services/gastosService');
-const { briefing, fraseDoVeredito, mesesDe, mesesConferem, numerosDe, numerosConferem } = require('./src/services/conselho');
+const {
+  briefing, fraseDoVeredito, motivoDoVeredito,
+  mesesDe, mesesConferem, numerosDe, numerosConferem,
+} = require('./src/services/conselho');
 const ciclo = require('./src/utils/ciclo');
 
 const MES = ciclo.cicloAtual();
@@ -201,6 +204,72 @@ conferirQue('frase do nao_cabe nao usa numero com sinal',
   fraseDoVeredito(inviavel));
 conferirQue('nenhuma frase de decisao sai vazia',
   [folgado, grande, apertado, pedido12, inviavel, cafe].every((a) => fraseDoVeredito(a).length > 20));
+
+// -------------------------------------------------------------------------
+// Piso de gasto livre pedido na pergunta ("quero ter pelo menos 700 livres").
+// Antes de existir, a restricao era ignorada em silencio: a resposta vinha com um
+// numero de parcelas que consumia justamente o dinheiro que a pessoa pediu para
+// preservar.
+// -------------------------------------------------------------------------
+conferir('le o piso e nao confunde com o preco',
+  lerCompra('quando posso comprar um fone de 1600 reais? quero ter pelo menos 700 reais no mes para gastar livre'),
+  { valor: 1600, parcelas: null, valor_parcela: null, reserva: 700 });
+conferir('piso em "mil" vira 1000',
+  lerCompra('quero comprar um celular de 1200 mantendo 1 mil livre no mes').reserva, 1000);
+conferir('piso nao inventa numero quando nao ha piso',
+  lerCompra('posso comprar um fone de 300 agora?').reserva, null);
+conferir('"pelo menos" falando do preco nao e piso',
+  lerCompra('pelo menos 1600 reais eu preciso pra esse fone').reserva, null);
+conferir('piso nao atropela a leitura de parcelas',
+  lerCompra('uma tv de 2000 em 12x deixando 400 livres'),
+  { valor: 2000, parcelas: 12, valor_parcela: null, reserva: 400 });
+
+// A conta com piso: cada mes que recebe parcela tem de sobrar o piso inteiro.
+// Conferido contra os compromissos, nao contra o proprio resultado.
+const comPiso = analisarCompra({ valor: 1600, mes: MES, reserva: 300 });
+if (comPiso.parcelado_a_partir || comPiso.parcelado_sugerido) {
+  const plano = comPiso.parcelado_a_partir || comPiso.parcelado_sugerido;
+  const respeita = plano.meses_afetados.every((m) => {
+    if (m.mes_referencia === MES) return true;
+    const renda = compromissos.totalRenda(m.mes_referencia);
+    const comp = compromissos.compromissosDoMes(m.mes_referencia);
+    const base = renda.definida ? renda.total : RENDA_3;
+    return base - comp.total - plano.valor_parcela >= 300 - 0.01;
+  });
+  conferirQue('com piso de 300, todo mes da parcela ainda deixa 300 livres', respeita,
+    JSON.stringify(plano.meses_afetados.map((m) => m.mes_referencia)));
+}
+conferirQue('piso maior que a renda nao aprova nada',
+  analisarCompra({ valor: 1600, mes: MES, reserva: RENDA_3 }).veredito === 'nao_cabe',
+  analisarCompra({ valor: 1600, mes: MES, reserva: RENDA_3 }).veredito);
+conferirQue('piso aparece na resposta',
+  analisarCompra({ valor: 1600, mes: MES, reserva: 300 }).reserva === 300);
+conferirQue('sem piso, o campo fica null',
+  analisarCompra({ valor: 1600, mes: MES }).reserva === null);
+
+// Parcela minima: sem ela, ciclo apertado fazia a busca "achar jeito" de aprovar
+// esticando as parcelas -- R$ 120 em 10x de R$ 12,00.
+const planoPequeno = (() => {
+  const a = analisarCompra({ valor: 120, mes: MES });
+  return a.parcelado_a_partir || a.parcelado_sugerido || a.parcelado_pedido;
+})();
+conferirQue('nao sugere parcela abaixo de R$ 50 por conta propria',
+  !planoPequeno || planoPequeno.valor_parcela >= 50,
+  JSON.stringify(planoPequeno));
+conferir('parcelamento PEDIDO e respeitado mesmo com parcela baixa',
+  analisarCompra({ valor: 300, parcelas: 12, mes: MES }).parcelado_pedido.parcelas, 12);
+
+// -------------------------------------------------------------------------
+// Motivo calculado: a segunda frase da resposta. Tambem nao passa pelo modelo.
+// -------------------------------------------------------------------------
+for (const [rotulo, a] of [
+  ['cabe_agora', folgado], ['nao_cabe', inviavel],
+  ['cabe_parcelado_depois', apertado], ['cabe_no_ritmo', cafe],
+]) {
+  const motivo = motivoDoVeredito(a);
+  conferirQue(`motivo do ${rotulo} existe e nao usa numero com sinal`,
+    motivo.length > 20 && !/-\s*R\$/.test(motivo) && !/R\$\s*-/.test(motivo), motivo);
+}
 
 // -------------------------------------------------------------------------
 for (const sufixo of ['', '-shm', '-wal']) {

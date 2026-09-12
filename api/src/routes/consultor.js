@@ -37,9 +37,14 @@ function prepararAnalise(corpo) {
     ? Number(corpo.valor)
     : lido.valor;
   const parcelas = corpo.parcelas ?? lido.parcelas;
+  // Piso de gasto livre por mes: o corpo manda, ou a propria frase diz
+  // ("quero ter pelo menos 700 reais no mes para gastar livre").
+  const reserva = corpo.reserva !== undefined && corpo.reserva !== null && corpo.reserva !== ''
+    ? Number(corpo.reserva)
+    : lido.reserva;
 
   const analise = valor && Number.isFinite(valor) && valor > 0
-    ? analisarCompra({ valor, parcelas, mes })
+    ? analisarCompra({ valor, parcelas, mes, reserva })
     : analisarGeral({ mes });
 
   return { pergunta, analise };

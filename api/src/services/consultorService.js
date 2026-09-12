@@ -29,6 +29,16 @@ const HORIZONTE = 12;
 // (menos parcelas primeiro: menos meses de compromisso travado).
 const PARCELAS_USUAIS = [2, 3, 4, 5, 6, 10, 12];
 
+// Piso da parcela sugerida por conta propria. Sem ele a busca "achava jeito" de
+// aprovar qualquer coisa esticando o numero de parcelas: com o ciclo apertado,
+// uma compra de R$ 120 saia como "10x de R$ 12,00", que nenhuma loja faz e
+// ninguem quer. Parcelamento pedido pelo usuario nao passa por aqui -- se ele
+// pediu 12x, o trabalho e responder sobre 12x.
+const PARCELA_MINIMA = 50;
+
+// Numeros de parcelas que fazem sentido para este valor.
+const parcelasViaveis = (valor) => PARCELAS_USUAIS.filter((n) => valor / n >= PARCELA_MINIMA);
+
 // Margem de seguranca sobre a folga mensal. Deixar a folga bater exatamente no
 // valor da parcela e planejar para o mes dar certo no limite -- qualquer
 // imprevisto estoura. 15% da folga fica de fora da conta.
@@ -46,10 +56,49 @@ const RE_PARCELA = /(\d{1,2})\s*(?:x|vezes)(?:\s*(?:de|por)?\s*(?:r\$\s*)?([\d.,
 const RE_MIL = /(\d+(?:[.,]\d+)?)\s*mil\b/i;
 const RE_NUMERO = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?|\d+(?:,\d{2})?|\d+(?:\.\d{2})?)/gi;
 
+// Piso de dinheiro livre por mes dito na propria pergunta: "quero ter pelo menos
+// 700 reais no mes para gastar livre", "deixando 500 livres", "sem mexer nos 300
+// do mes". Sem isto, a restricao era simplesmente ignorada -- a resposta chegava
+// com um numero de parcelas que consumia justamente o dinheiro que a pessoa
+// pediu para preservar.
+const RE_RESERVA = new RegExp([
+  '(?:pelo menos|no m[ií]nimo|m[ií]nimo de|deixa(?:r|ndo)|sobra(?:r|ndo)',
+  '|guarda(?:r|ndo)|manter|mantendo|reserva(?:r|ndo)?|sem mexer (?:n)?(?:os|as|o|a))',
+  '\\s*(?:de\\s*)?(?:r\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})+(?:,\\d{2})?|\\d+(?:[.,]\\d{1,2})?)',
+  '\\s*(?:mil\\b)?',
+].join(''), 'i');
+
+// Só conta como piso se a frase disser que o dinheiro é para gastar/ficar livre,
+// ou for por mês. "pelo menos 1600" falando do preço não é piso.
+const RE_CONTEXTO_RESERVA = /\b(livre|livres|gastar|sobrar|sobrando|por m[eê]s|no m[eê]s|mensal|guardad[oa]s?|intocad[oa]s?)\b/i;
+
+// Piso mensal de gasto livre lido da pergunta. Devolve { reserva, texto } com o
+// texto já sem o número do piso, para ele não concorrer com o preço na leitura
+// do valor da compra ("pelo menos 2000 livres" num fone de 1600 faria o preço
+// virar 2000, porque o preço é o MAIOR número da frase).
+function lerReserva(texto) {
+  const m = texto.match(RE_RESERVA);
+  if (!m) return { reserva: null, texto };
+
+  const depois = texto.slice(m.index + m[0].length, m.index + m[0].length + 40);
+  if (!RE_CONTEXTO_RESERVA.test(m[0]) && !RE_CONTEXTO_RESERVA.test(depois)) {
+    return { reserva: null, texto };
+  }
+
+  let n = normalizarValor(m[1]);
+  if (n === null || n <= 0) return { reserva: null, texto };
+  if (/mil\b/i.test(m[0])) n = emCentavos(n * 1000);
+
+  return {
+    reserva: n,
+    texto: `${texto.slice(0, m.index)} ${texto.slice(m.index + m[0].length)}`,
+  };
+}
+
 // Extrai valor total e numero de parcelas de uma pergunta em portugues.
 // Devolve { valor, parcelas } com null quando a frase nao tem numero de preco.
 function lerCompra(pergunta) {
-  const texto = String(pergunta || '');
+  const { reserva, texto } = lerReserva(String(pergunta || ''));
 
   const mParcela = texto.match(RE_PARCELA);
   const parcelas = mParcela ? Number(mParcela[1]) : null;
@@ -58,14 +107,14 @@ function lerCompra(pergunta) {
   if (mParcela && mParcela[2]) {
     const porParcela = normalizarValor(mParcela[2]);
     if (porParcela !== null && porParcela > 0 && parcelas > 0) {
-      return { valor: emCentavos(porParcela * parcelas), parcelas, valor_parcela: porParcela };
+      return { valor: emCentavos(porParcela * parcelas), parcelas, valor_parcela: porParcela, reserva };
     }
   }
 
   const mMil = texto.match(RE_MIL);
   if (mMil) {
     const n = normalizarValor(mMil[1]);
-    if (n !== null && n > 0) return { valor: emCentavos(n * 1000), parcelas, valor_parcela: null };
+    if (n !== null && n > 0) return { valor: emCentavos(n * 1000), parcelas, valor_parcela: null, reserva };
   }
 
   // Numeros candidatos a preco, tirando o que ja foi lido como "Nx".
@@ -74,8 +123,8 @@ function lerCompra(pergunta) {
     .map((m) => normalizarValor(m[1]))
     .filter((n) => n !== null && n > 0);
 
-  if (!numeros.length) return { valor: null, parcelas, valor_parcela: null };
-  return { valor: emCentavos(Math.max(...numeros)), parcelas, valor_parcela: null };
+  if (!numeros.length) return { valor: null, parcelas, valor_parcela: null, reserva };
+  return { valor: emCentavos(Math.max(...numeros)), parcelas, valor_parcela: null, reserva };
 }
 
 // -------------------------------------------------------------------------
@@ -157,7 +206,30 @@ function retrato(mesBase) {
 
 // Folga descontando a margem de seguranca. E contra este numero que a compra
 // e testada: usar a folga cheia aprova compra que so cabe no mes perfeito.
-const folgaUtil = (folga) => (folga === null ? null : emCentavos(folga * (1 - MARGEM)));
+// Com um piso explicito na pergunta ("quero ter 700 livres"), a margem de 15%
+// sai: o numero que a pessoa deu JA e a reserva dela, e descontar os dois seria
+// cobrar duas vezes pela mesma seguranca.
+const folgaUtil = (folga, margem = MARGEM) => (
+  folga === null ? null : emCentavos(folga * (1 - margem))
+);
+
+// Fotografia reescrita em torno do piso mensal pedido: a folga de cada mes passa
+// a ser "o que sobra DEPOIS de garantir o piso", em vez de "o que sobra depois do
+// ritmo medido". No ciclo aberto o piso e proporcional ao que falta dele -- no
+// dia 12 de um ciclo de 31 nao faz sentido exigir os 700 inteiros do que resta.
+function comReserva(foto, reserva) {
+  const prorata = emCentavos(reserva * (foto.dias_restantes / foto.ciclo.dias_no_ciclo));
+  return {
+    ...foto,
+    reserva,
+    reserva_no_ciclo: prorata,
+    folga_atual: foto.disponivel === null ? null : emCentavos(foto.disponivel - prorata),
+    meses_futuros: foto.meses_futuros.map((m) => ({
+      ...m,
+      folga: m.renda_total === null ? null : emCentavos(m.renda_total - m.comprometido_total - reserva),
+    })),
+  };
+}
 
 // Linha do tempo de folgas, do ciclo aberto ate o fim do horizonte. Indice 0 e
 // o ciclo aberto (folga parcial, so o que resta dele); 1 em diante sao os meses
@@ -179,7 +251,7 @@ function linhaDeFolgas(foto) {
 // ciclo aberto quando ele ja esta estourado reprova qualquer numero de
 // parcelas, e era por isso que a pergunta "em quantas parcelas eu consigo"
 // ficava sem resposta.
-function testarParcelamento(foto, valor, n, inicio = 0) {
+function testarParcelamento(foto, valor, n, inicio = 0, margem = MARGEM) {
   const parcela = emCentavos(valor / n);
   const linha = linhaDeFolgas(foto);
   const afetados = [];
@@ -187,7 +259,7 @@ function testarParcelamento(foto, valor, n, inicio = 0) {
   for (let i = 0; i < n; i += 1) {
     const m = linha[inicio + i];
     if (!m) break;
-    const util = folgaUtil(m.folga);
+    const util = folgaUtil(m.folga, margem);
     afetados.push({
       mes_referencia: m.mes_referencia,
       folga_util: util,
@@ -213,19 +285,35 @@ function testarParcelamento(foto, valor, n, inicio = 0) {
 // Primeiro mes em que da para COMECAR um parcelamento que cabe inteiro, com o
 // menor numero de parcelas possivel. Responde "quando e em quantas vezes" numa
 // so resposta -- a pergunta que o usuario faz quando o preco nao cabe hoje.
-function parceladoAPartirDe(foto, valor, preferidas = PARCELAS_USUAIS) {
+function parceladoAPartirDe(foto, valor, preferidas = PARCELAS_USUAIS, margem = MARGEM) {
   const linha = linhaDeFolgas(foto);
   // Comeca em 1: o indice 0 e o "compro agora", que quem chama ja testou.
   for (let inicio = 1; inicio < linha.length; inicio += 1) {
     for (const n of preferidas) {
       if (inicio + n > linha.length) continue;
-      const t = testarParcelamento(foto, valor, n, inicio);
+      const t = testarParcelamento(foto, valor, n, inicio, margem);
       if (t.cabe) {
+        // Por que nao um mes antes: o mesmo numero de parcelas comecando no mes
+        // anterior, e o mes exato em que ele estoura. E o motivo da resposta, e
+        // precisa ser calculado -- o modelo, quando tentava explicar isso,
+        // inventava nome de compromisso que nao existia no briefing.
+        const antes = testarParcelamento(foto, valor, n, inicio - 1, margem);
+        const pior = antes.meses_afetados
+          .filter((m) => m.sobra_depois !== null && m.sobra_depois < 0)
+          .sort((x, y) => x.sobra_depois - y.sobra_depois)[0] || antes.mes_mais_apertado;
         const mesInicio = linha[inicio].mes_referencia;
         // A data em que a compra pode ser feita, nao so o rotulo do ciclo: o
         // ciclo "out/2026" abre em 29/09, e foi exatamente isso que o usuario
         // nao entendeu na resposta.
-        return { ...t, mes_inicio: mesInicio, primeiro_dia: ciclo.janela(mesInicio).inicio };
+        return {
+          ...t,
+          mes_inicio: mesInicio,
+          primeiro_dia: ciclo.janela(mesInicio).inicio,
+          // O impedimento de comecar um mes antes.
+          bloqueio: pior && pior.sobra_depois !== null && pior.sobra_depois < 0
+            ? { mes_referencia: pior.mes_referencia, faltam: emCentavos(Math.abs(pior.sobra_depois)) }
+            : null,
+        };
       }
     }
   }
@@ -233,9 +321,9 @@ function parceladoAPartirDe(foto, valor, preferidas = PARCELAS_USUAIS) {
 }
 
 // Primeiro mes futuro cuja folga sozinha paga a compra a vista.
-function primeiroMesQueCabe(foto, valor) {
+function primeiroMesQueCabe(foto, valor, margem = MARGEM) {
   for (const m of foto.meses_futuros) {
-    const util = folgaUtil(m.folga);
+    const util = folgaUtil(m.folga, margem);
     if (util !== null && util >= valor) {
       return {
         mes_referencia: m.mes_referencia,
@@ -249,11 +337,11 @@ function primeiroMesQueCabe(foto, valor) {
 }
 
 // Quantos meses guardando a folga inteira ate juntar o valor.
-function mesesGuardando(foto, valor) {
-  let acumulado = folgaUtil(foto.folga_atual) || 0;
+function mesesGuardando(foto, valor, margem = MARGEM) {
+  let acumulado = folgaUtil(foto.folga_atual, margem) || 0;
   if (acumulado >= valor) return { meses: 0, por_mes: null };
   for (let i = 0; i < foto.meses_futuros.length; i += 1) {
-    const util = folgaUtil(foto.meses_futuros[i].folga);
+    const util = folgaUtil(foto.meses_futuros[i].folga, margem);
     if (util === null || util <= 0) continue;
     acumulado = emCentavos(acumulado + util);
     if (acumulado >= valor) {
@@ -264,9 +352,16 @@ function mesesGuardando(foto, valor) {
 }
 
 // Analise completa de uma compra. Tudo que a frase do LLM pode citar sai daqui.
-function analisarCompra({ valor, parcelas = null, mes }) {
+function analisarCompra({ valor, parcelas = null, mes, reserva = null }) {
   const mesBase = mes || ciclo.cicloAtual();
-  const foto = retrato(mesBase);
+  const real = retrato(mesBase);
+
+  // Piso explicito troca a base da conta: em vez de "o que sobra depois do meu
+  // ritmo medido", a folga passa a ser "o que sobra garantindo o piso". E a
+  // margem de 15% sai, porque o piso ja e a folga que a pessoa quer.
+  const piso = reserva !== null && Number.isFinite(reserva) && reserva > 0 ? reserva : null;
+  const foto = piso ? comReserva(real, piso) : real;
+  const margem = piso ? 0 : MARGEM;
 
   if (!foto.renda_definida) {
     return {
@@ -278,23 +373,27 @@ function analisarCompra({ valor, parcelas = null, mes }) {
     };
   }
 
-  const folgaUtilAtual = folgaUtil(foto.folga_atual);
+  const folgaUtilAtual = folgaUtil(foto.folga_atual, margem);
   const cabeAgora = folgaUtilAtual !== null && folgaUtilAtual >= valor;
 
   // Compra pequena e outro problema: um cafe de R$ 8 nao e gasto EXTRA, e o
   // ritmo do dia. Testar o cafe contra a folga (o que sobra DEPOIS do ritmo)
   // reprovava qualquer compra sempre que o ciclo estava apertado, e a resposta
   // saia absurda para a pergunta mais comum do app.
+  // Com piso pedido a regra do cafe nao vale: "cabe no ritmo de hoje" e uma
+  // afirmacao sobre o ritmo medido, e a pessoa acabou de dizer que quer outro.
   const cabeHoje = foto.cabe_hoje;
-  const cabeNoRitmo = !cabeAgora && cabeHoje !== null && cabeHoje > 0 && valor <= cabeHoje;
+  const cabeNoRitmo = !piso && !cabeAgora && cabeHoje !== null && cabeHoje > 0 && valor <= cabeHoje;
 
   // Parcelamento: testa o que o usuario pediu e, se ele nao pediu nada, o
   // menor numero de parcelas que cabe -- menos meses travados e melhor.
-  const pedido = parcelas && parcelas > 1 ? testarParcelamento(foto, valor, Math.min(parcelas, HORIZONTE)) : null;
+  const pedido = parcelas && parcelas > 1
+    ? testarParcelamento(foto, valor, Math.min(parcelas, HORIZONTE), 0, margem)
+    : null;
   let sugerido = null;
   if (!cabeAgora && (!pedido || !pedido.cabe)) {
-    for (const n of PARCELAS_USUAIS) {
-      const t = testarParcelamento(foto, valor, n);
+    for (const n of parcelasViaveis(valor)) {
+      const t = testarParcelamento(foto, valor, n, 0, margem);
       if (t.cabe) { sugerido = t; break; }
     }
   }
@@ -305,11 +404,11 @@ function analisarCompra({ valor, parcelas = null, mes }) {
   const aPartir = (cabeAgora || (pedido && pedido.cabe) || sugerido)
     ? null
     : parceladoAPartirDe(foto, valor, pedido
-      ? [pedido.parcelas, ...PARCELAS_USUAIS.filter((n) => n !== pedido.parcelas)]
-      : PARCELAS_USUAIS);
+      ? [pedido.parcelas, ...parcelasViaveis(valor).filter((n) => n !== pedido.parcelas)]
+      : parcelasViaveis(valor), margem);
 
-  const proximoMes = cabeAgora ? null : primeiroMesQueCabe(foto, valor);
-  const juntando = cabeAgora ? null : mesesGuardando(foto, valor);
+  const proximoMes = cabeAgora ? null : primeiroMesQueCabe(foto, valor, margem);
+  const juntando = cabeAgora ? null : mesesGuardando(foto, valor, margem);
 
   // Alivio a caminho: parcelamentos que terminam nos proximos meses. E a
   // informacao que muda a decisao de "nao" para "espera pouco".
@@ -321,6 +420,13 @@ function analisarCompra({ valor, parcelas = null, mes }) {
       itens: m.parcelamentos_terminando,
       valor: emCentavos(m.parcelamentos_terminando.reduce((s, p) => s + p.valor, 0)),
     }));
+
+  // Maior folga mensal do horizonte: quando nada cabe, e o numero que explica
+  // por que nada cabe.
+  const melhorMes = foto.meses_futuros
+    .map((m) => ({ mes_referencia: m.mes_referencia, folga_util: folgaUtil(m.folga, margem) }))
+    .filter((m) => m.folga_util !== null)
+    .sort((x, y) => y.folga_util - x.folga_util)[0] || null;
 
   let veredito;
   if (cabeAgora) veredito = 'cabe_agora';
@@ -347,6 +453,11 @@ function analisarCompra({ valor, parcelas = null, mes }) {
         : emCentavos(valor / foto.dias_restantes),
     },
     // Cabe dentro do gasto do dia, sem mexer na folga do ciclo.
+    // O piso pedido, e o quanto dele e exigido do ciclo aberto (proporcional ao
+    // que falta dele). null quando a pergunta nao pediu piso nenhum.
+    melhor_mes: melhorMes,
+    reserva: piso,
+    reserva_no_ciclo: piso ? foto.reserva_no_ciclo : null,
     dentro_do_ritmo: {
       cabe: cabeNoRitmo,
       cabe_hoje: cabeHoje,
@@ -358,7 +469,10 @@ function analisarCompra({ valor, parcelas = null, mes }) {
     esperar_ate: proximoMes,
     juntando,
     alivios,
-    retrato: foto,
+    // O retrato sai SEM o ajuste do piso: e a fotografia do dinheiro de verdade,
+    // e a tela mostra esses numeros. O piso vive em `reserva` e ja esta embutido
+    // nas folgas testadas acima.
+    retrato: real,
   };
 }
 
@@ -370,5 +484,5 @@ function analisarGeral({ mes }) {
 }
 
 module.exports = {
-  lerCompra, analisarCompra, analisarGeral, retrato, HORIZONTE, MARGEM,
+  lerCompra, lerReserva, analisarCompra, analisarGeral, retrato, HORIZONTE, MARGEM,
 };

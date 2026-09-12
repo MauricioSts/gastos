@@ -24,7 +24,7 @@ for (const sufixo of ['', '-shm', '-wal']) {
 const compromissos = require('./src/services/compromissosService');
 const { analisarCompra, retrato } = require('./src/services/consultorService');
 const gastos = require('./src/services/gastosService');
-const { briefing, textoDeReserva, mesesDe, mesesConferem, numerosDe, numerosConferem } = require('./src/services/conselho');
+const { briefing, fraseDoVeredito, mesesDe, mesesConferem, numerosDe, numerosConferem } = require('./src/services/conselho');
 const ciclo = require('./src/utils/ciclo');
 
 const MES = ciclo.cicloAtual();
@@ -185,13 +185,22 @@ conferirQue('valor inventado e barrado',
 conferirQue('quantidade de parcelas nao e tratada como valor inventado',
   numerosConferem('Da em 10x tranquilo.', numerosPermitidos));
 
-// Texto de reserva: e o que o app mostra quando o Ollama esta fora do ar, e
-// tem que responder a mesma pergunta que o veredito.
-const reserva = textoDeReserva(apertado);
-conferirQue('reserva cita as parcelas e o mes de inicio',
-  /\d+x de R\$/.test(reserva) && /\w+\/\d{4}/.test(reserva), reserva);
-conferirQue('reserva do cabe_agora fala em sobra',
-  /sobra/.test(textoDeReserva(folgado)), textoDeReserva(folgado));
+// A frase da decisao. E a PRIMEIRA frase de toda resposta, nao passa pelo modelo
+// e e a resposta inteira quando o Ollama esta fora do ar. Foi criada porque o
+// 3b, perguntado "em que mes eu poderei comprar e em quantas parcelas?",
+// respondeu tres vezes de tres formas -- uma sem o mes, uma sem o ano.
+const decisao = fraseDoVeredito(apertado);
+conferirQue('frase da decisao cita as parcelas', /\d+x de R\$/.test(decisao), decisao);
+conferirQue('frase da decisao cita mes E ano', /\w{3}\/\d{4}/.test(decisao), decisao);
+conferirQue('frase do cabe_agora fala em sobra',
+  /sobra/.test(fraseDoVeredito(folgado)), fraseDoVeredito(folgado));
+conferirQue('frase do cabe_no_ritmo fala do espaco de hoje',
+  /hoje/.test(fraseDoVeredito(cafe)), fraseDoVeredito(cafe));
+conferirQue('frase do nao_cabe nao usa numero com sinal',
+  !/-\s*R\$/.test(fraseDoVeredito(inviavel)) && !/R\$\s*-/.test(fraseDoVeredito(inviavel)),
+  fraseDoVeredito(inviavel));
+conferirQue('nenhuma frase de decisao sai vazia',
+  [folgado, grande, apertado, pedido12, inviavel, cafe].every((a) => fraseDoVeredito(a).length > 20));
 
 // -------------------------------------------------------------------------
 for (const sufixo of ['', '-shm', '-wal']) {

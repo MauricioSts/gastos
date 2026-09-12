@@ -210,12 +210,20 @@ A tela é montada em duas ondas, e essa é a decisão de projeto central:
 | Onda | O que é | Quando chega |
 |---|---|---|
 | Veredito + a conta | Aritmética no backend | ~200ms |
-| A explicação | Texto do LLM local, em streaming | primeira frase em ~3 a 9s |
+| A frase da resposta (mês, parcelas, valor) | Calculada no backend, não passa pelo modelo | com o veredito |
+| O motivo | Texto do LLM local, em streaming | ~3s com o modelo quente |
 
 O cartão de veredito (com cor e sinal próprios por resultado) aparece
 praticamente na hora e o texto vai aparecendo escrito abaixo. Esperar o texto
 para mostrar tudo junto transformaria uma resposta instantânea em dez segundos
 de tela parada.
+
+A primeira frase do texto **não vem do modelo**: mês, número de parcelas e valor
+da parcela são calculados no backend e chegam junto com o veredito. O modelo
+escreve só a frase do motivo, depois. Foi um teste que forçou isso: perguntado
+"em que mês eu poderei comprar um fone de 1600 e em quantas parcelas?", o modelo
+local respondeu três vezes de três jeitos, uma sem o mês e uma sem o ano, mesmo
+com o dado na frente dele.
 
 Nada é recalculado no cliente: os valores exibidos vêm do mesmo cálculo que
 gerou o veredito, para a tela não conseguir divergir dele. E o modelo local não

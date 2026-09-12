@@ -108,9 +108,10 @@ async function chatTextoStream({ mensagens, opcoes = {}, aoPedaco, sinal }) {
           // Conselho nao e extracao: um pouco de temperatura evita a frase
           // robotica, sem soltar o modelo para inventar numero.
           temperature: 0.3,
-          // 3 frases curtas cabem em ~90 tokens; o teto evita o modelo
-          // pequeno emendar um quarto paragrafo depois de ter respondido.
-          num_predict: 130,
+          // O modelo escreve UMA frase de motivo -- ~30 tokens. O teto baixo e
+          // a segunda trava: em CPU a 9 tok/s, cada token a mais e espera real,
+          // e o modelo pequeno tende a emendar paragrafo depois de responder.
+          num_predict: 60,
           ...opcoes,
         },
       }),

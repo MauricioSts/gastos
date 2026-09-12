@@ -771,9 +771,20 @@ Toda resposta de erro é JSON com o campo `erro`.
 
 Duas rotas para a mesma pergunta: "quando vale a pena comprar X por Y?".
 
-A análise é conta de banco e volta em milissegundos. O texto é escrito pelo
-modelo local, que em CPU gera ~10 tokens/s. Por isso existe a versão em
-streaming: o app pinta o veredito na hora e deixa a frase aparecer escrevendo.
+A análise é conta de banco e volta em milissegundos. **A frase que dá a resposta
+também**: mês, número de parcelas e valor da parcela são escritos por
+`fraseDoVeredito`, em JavaScript, e são sempre a primeira frase do `texto`. O
+modelo local escreve só a frase seguinte, o motivo.
+
+Essa divisão não é estética. Perguntado *"em que mês eu poderei comprar um fone
+de 1600 e em quantas parcelas?"*, o `qwen2.5:3b` respondeu três vezes seguidas de
+três jeitos — "cabendo nos próximos 10 meses" (sem mês), "em outubro" (sem ano) e
+uma vez com o mês certo. O briefing tinha o dado nas três. Pedir ao modelo que
+repita um número é apostar que ele repita; o dado que responde à pergunta não
+pode ser aposta.
+
+Por isso existe também a versão em streaming: o primeiro `pedaco` é a frase
+calculada e sai antes de o modelo ser chamado.
 
 ### `POST /api/consultor` — resposta fechada (JSON)
 
@@ -805,8 +816,9 @@ Resposta:
   "tipo": "compra",
   "veredito": "esperar",
   "titulo": "Melhor esperar.",
-  "texto": "Melhor esperar, pois à vista sem aperto só a partir de jan/2027…",
+  "texto": "Começando em out/2026 dá para pagar em 3x de R$ 100,00; neste ciclo, nem parcelado. O seu ritmo de gasto atual já consome o que sobrou da renda.",
   "modelo": "qwen2.5:3b",
+  "prosa": true,
   "analise": {
     "valor": 300,
     "veredito": "esperar",
@@ -874,7 +886,7 @@ Mesmo corpo. A resposta é `text/event-stream`:
 |---|---|---|
 | `analise` | uma vez, imediato | igual à resposta fechada, sem `texto` |
 | `pedaco` | N vezes | `{ "texto": "…" }`, uma frase por vez |
-| `fim` | uma vez | `{ "texto": "frase inteira", "modelo": "…", "reserva": true? }` |
+| `fim` | uma vez | `{ "texto": "resposta inteira", "modelo": "…", "prosa": true\|false }` |
 | `erro` | em falha não tratada | `{ "erro": "…" }` |
 
 ```bash
@@ -885,14 +897,14 @@ curl -sN -X POST $BASE/api/consultor/stream \
 
 Erro de validação acontece antes de o stream abrir e volta como HTTP 400 normal.
 
-`reserva: true` no evento `fim` significa que o texto não veio do modelo: ou o
-Ollama estava fora do ar, ou a frase gerada foi reprovada na conferência de
-número. Nos dois casos a resposta é a frase calculada — a decisão nunca dependeu
-do modelo.
+`prosa: false` significa que só a frase calculada saiu: ou o Ollama estava fora
+do ar, ou a frase do modelo foi reprovada na conferência. Não é erro e o app não
+precisa tratar — a resposta está completa, só sem o motivo em prosa.
 
 Os pedaços são frases fechadas, não tokens: a conferência de número só faz
-sentido em frase inteira ("R$ 22" ainda pode virar "R$ 224,81"). Uma frase leva
-~2s, então o texto continua aparecendo escrito.
+sentido em frase inteira ("R$ 22" ainda pode virar "R$ 224,81"). A geração para
+na primeira frase aprovada do modelo: o motivo é uma frase só, e em CPU cada
+frase a mais custa ~4s de espera real.
 
 ## `GET /api/boot` — tudo do ciclo em uma resposta
 
@@ -1063,8 +1075,9 @@ Medições nesta VM com `qwen2.5:3b` quente:
 | Etapa | Tempo |
 |---|---|
 | Análise completa (veredito, meses, folgas) | **~50ms** — é só SQLite e aritmética |
-| Primeira frase do texto no ar | ~3 a 6s |
-| Resposta inteira (2 frases) | ~8 a 15s |
+| Frase da decisão (mês, parcelas, valor) | **~1ms** — é JavaScript, não passa pelo modelo |
+| Motivo em prosa, modelo quente | ~3s |
+| Motivo em prosa, primeira pergunta após reiniciar | ~10 a 17s |
 
 Medido nesta VM (4 vCPU, sem GPU) com o prompt inteiro em 440 tokens:
 
@@ -1079,6 +1092,12 @@ Medido nesta VM (4 vCPU, sem GPU) com o prompt inteiro em 440 tokens:
 O 3b fica. O 7b escreve uma prosa um pouco melhor e custa 2 a 3 vezes mais em
 cada pergunta — e o que corrigiu as respostas confusas não foi modelo maior, foi
 tirar do briefing o que o modelo pequeno invertia (ver abaixo).
+
+**Onde colocar exemplo é decisão de latência.** O Ollama cacheia o prefixo do
+prompt, e o `PROMPT_SISTEMA` é idêntico em toda chamada: exemplo colocado nele
+custa ~0,1s a partir da segunda pergunta. Exemplo colocado no briefing, que muda
+a cada pergunta, seria pago inteiro sempre — a 43 tok/s, cada 43 tokens são 1s de
+espera antes da primeira palavra.
 
 **Contexto não é o gargalo, e aumentá-lo não ajuda.** O prompt inteiro são ~440
 tokens dentro de uma janela de 4096: nunca houve truncamento para consertar.
@@ -1117,6 +1136,8 @@ reais deste banco.
 | "a compra deixa a última parcela do Monitor Gamer sem folga" | o item que está **acabando** lido como o item da pergunta | alívio só entra no briefing quando é o argumento da espera |
 | "VEREDITO: cabe parcelado…" / "Decisão: …" | modelo pequeno copia o formato do que lê | rótulo proibido no prompt e removido do início da frase no código |
 | "junta em 5 meses" misturado com "parcele em 10x" | duas alternativas competindo no mesmo briefing | com saída parcelada decidida, a linha de juntar dinheiro sai |
+| "cabendo nos próximos 10 meses" — sem dizer o mês, três respostas diferentes para a mesma pergunta | pedir ao modelo que repita o dado decisivo | mês, parcelas e valor saem de `fraseDoVeredito`, em JavaScript, e são a primeira frase da resposta |
+| frases telegráficas do tipo "Folga negativa, ciclo estourado" | o modelo copiava o estilo de rótulo do briefing | três exemplos de frase boa no `PROMPT_SISTEMA` — que é cacheado pelo Ollama, então custa tempo só na primeira pergunta |
 
 ## Solução de problemas
 

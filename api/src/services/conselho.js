@@ -16,27 +16,39 @@ const real = (n) => (n === null || n === undefined
 // O prompt e curto de proposito. Em CPU, o prompt custa ~25ms por token so
 // para ser lido: cada linha de instrucao aqui atrasa a primeira palavra que o
 // usuario ve. Regra que nao muda a saida foi cortada.
+// O modelo nao escreve a decisao: ela ja foi escrita por `fraseDoVeredito` e o
+// app ja a mostrou. O trabalho dele e UMA frase de porque, e o prompt diz isso
+// de forma direta -- pedir menos a um modelo de 3B e o que faz a resposta
+// parecer inteligente, porque sobra menos superficie para ele errar.
 const PROMPT_SISTEMA = `Consultor financeiro de um app de gastos brasileiro.
 
-- O VEREDITO ja foi decidido por calculo. Explique-o, nunca contradiga.
+- A decisao ja foi dada ao usuario. Escreva SO o motivo dela, em UMA frase curta.
+- Nao repita a decisao, o mes nem o numero de parcelas: isso ja esta na tela.
 - Use SO os numeros da lista. Nunca calcule nem invente valor.
-- Maximo 2 frases curtas, portugues brasileiro, sem emoji. Trate a pessoa por voce,
-  mas nunca comece a frase com "Voce,".
-- Parcela que esta terminando nao e o item da pergunta, e alivio no orcamento.
+- Portugues brasileiro, sem emoji, sem rotulo ("Decisao:", "Motivo:").
+- Trate a pessoa por voce, mas nunca comece a frase com "Voce,".
 - Folga negativa ou "nenhuma" = o ciclo ja estourou. Nunca diga que existe folga.
-- A primeira frase diz se cabe, em que mes e em quantas parcelas.
-- Escreva prosa corrida. Nada de rotulo antes da frase ("VEREDITO:", "Decisao:").
-- Sem conselho generico: so este caso.`;
+- Parcela que esta terminando nao e o item da pergunta, e alivio no orcamento.
+- Sem conselho generico: so este caso.
+- Frase completa, com verbo, como quem conversa. Nao copie o estilo de rotulo do
+  briefing ("Folga negativa, ciclo estourado" nao e frase).
+
+Exemplos do que e uma boa frase de motivo:
+"O seu ritmo de gasto deste mes ja consome tudo o que sobrou da renda, e por isso
+nem uma parcela caberia agora."
+"A partir do mes que vem a ultima parcela do celular sai da conta e abre espaco
+para a nova."
+"O valor e pequeno perto do que ainda cabe no seu dia, entao nao muda o mes."`;
 
 // Rotulos de veredito, em primeira pessoa do app. O texto do modelo vem DEPOIS
 // disto na tela, entao aqui fica a decisao e la a justificativa.
 const VEREDITOS = {
-  cabe_agora: 'Cabe agora, a vista.',
+  cabe_agora: 'Cabe agora, à vista.',
   cabe_no_ritmo: 'Cabe hoje, dentro do seu ritmo.',
-  cabe_parcelado: 'So cabe parcelado.',
+  cabe_parcelado: 'Só cabe parcelado.',
   esperar: 'Melhor esperar.',
-  cabe_parcelado_depois: 'Cabe parcelado, comecando mais para frente.',
-  nao_cabe: 'Nao cabe no seu orcamento hoje.',
+  cabe_parcelado_depois: 'Cabe parcelado, começando mais para frente.',
+  nao_cabe: 'Não cabe no seu orçamento hoje.',
   sem_renda: 'Falta cadastrar sua renda.',
   contexto: null,
 };
@@ -69,7 +81,7 @@ function briefingCompra(a, pergunta) {
 
   if (a.veredito === 'cabe_no_ritmo') {
     linhas.push(`Cabe dentro do gasto de hoje: ainda pode gastar ${real(a.dentro_do_ritmo.cabe_hoje)} hoje sem estourar o ritmo (ja gastou ${real(a.dentro_do_ritmo.gasto_hoje)} hoje).`);
-    linhas.push(`VEREDITO: ${VEREDITOS[a.veredito]} Justifique em 2 frases.`);
+    linhas.push(`DECISAO JA DADA: ${VEREDITOS[a.veredito]} Escreva so o motivo, em uma frase.`);
     return linhas.join('\n');
   }
 
@@ -128,7 +140,7 @@ function briefingCompra(a, pergunta) {
     linhas.push(`Alivio no orcamento: em ${nomeMes(alivio.mes_referencia)} acaba a ultima parcela de ${alivio.itens.map((i) => i.descricao).join(', ')}, o que devolve ${real(alivio.valor)}/mes de folga.`);
   }
 
-  linhas.push(`VEREDITO: ${VEREDITOS[a.veredito]} Justifique em 2 frases.`);
+  linhas.push(`DECISAO JA DADA: ${VEREDITOS[a.veredito]} Escreva so o motivo, em uma frase.`);
 
   return linhas.join('\n');
 }
@@ -148,7 +160,7 @@ function briefingGeral(a, pergunta) {
       : `Disponivel ${real(f.disponivel)}, ritmo ${real(f.media_diaria)}/dia, folga real ${real(f.folga_atual)}.`,
     `Pode gastar hoje sem estourar o ritmo: ${real(f.cabe_hoje)} (ja gastou ${real(f.gasto_hoje)} hoje).`,
     ...(alivio ? [`Alivio no orcamento: em ${nomeMes(alivio.mes_referencia)} acaba a ultima parcela de ${alivio.parcelamentos_terminando.map((p) => p.descricao).join(', ')}, o que devolve ${real(alivio.parcelamentos_terminando.reduce((s2, p) => s2 + p.valor, 0))}/mes de folga.`] : []),
-    'Responda em 2 frases, usando so estes numeros.',
+    'Escreva uma frase curta de contexto, usando so estes numeros.',
   ].join('\n');
 }
 
@@ -158,33 +170,47 @@ function briefing(analise, pergunta) {
     : briefingGeral(analise, pergunta);
 }
 
-// Frase de reserva quando o Ollama esta fora do ar. O app nao pode ficar sem
-// resposta: a analise inteira ja existe sem o modelo, so a prosa se perde.
-function textoDeReserva(a) {
+// A FRASE DA DECISAO. E a primeira frase de toda resposta e nao passa pelo
+// modelo -- ela e escrita aqui, com o mes e o numero de parcelas que a conta
+// achou.
+//
+// Isso deixou de ser opcional depois do teste do usuario: perguntado "em que mes
+// eu poderei comprar um fone de 1600 e em quantas parcelas?", o qwen2.5:3b
+// respondeu tres vezes seguidas de tres formas -- "cabendo nos proximos 10
+// meses" (sem mes), "em outubro" (sem ano) e so uma vez com o mes certo. O
+// briefing tinha a informacao nas tres. Pedir ao modelo para repetir um dado
+// e apostar que ele repita; o dado que responde a pergunta nao pode ser aposta.
+//
+// Tambem e a resposta inteira quando o Ollama esta fora do ar: o app nunca fica
+// sem conselho, so sem a justificativa em prosa.
+function fraseDoVeredito(a) {
   if (a.tipo !== 'compra') {
-    return `Sua folga neste ciclo e de ${real(a.retrato.folga_atual)}, mantendo o ritmo de ${real(a.retrato.media_diaria)} por dia.`;
+    return `Você pode gastar ${real(a.retrato.cabe_hoje)} hoje sem estourar o seu ritmo de ${real(a.retrato.media_diaria)} por dia.`;
   }
-  if (a.veredito === 'sem_renda') return 'Cadastre sua renda do ciclo para eu poder responder.';
+  if (a.veredito === 'sem_renda') return 'Cadastre a sua renda do ciclo para eu poder responder.';
   if (a.veredito === 'cabe_no_ritmo') {
-    return `Cabe: ${real(a.valor)} entra no gasto de hoje, que ainda tem ${real(a.dentro_do_ritmo.cabe_hoje)} de espaco.`;
+    return `Cabe: ${real(a.valor)} entra no gasto de hoje, que ainda tem ${real(a.dentro_do_ritmo.cabe_hoje)} de espaço.`;
   }
   if (a.veredito === 'cabe_agora') {
-    return `Cabe: depois de gastar ${real(a.valor)} ainda sobram ${real(a.a_vista.sobra_depois)} de folga no ciclo.`;
+    return `Cabe agora: depois de gastar ${real(a.valor)} ainda sobram ${real(a.a_vista.sobra_depois)} de folga no ciclo.`;
   }
   const parc = a.parcelado_pedido?.cabe ? a.parcelado_pedido : a.parcelado_sugerido;
   if (parc) {
-    return `A vista nao cabe, mas ${parc.parcelas}x de ${real(parc.valor_parcela)} cabe em todos os meses afetados.`;
+    return `À vista não cabe, mas em ${parc.parcelas}x de ${real(parc.valor_parcela)} cabe, começando neste ciclo.`;
   }
   // Ordem pelo veredito, nao pela ordem dos campos: quando o parcelamento
   // comeca antes do mes em que daria a vista, e ele a resposta.
   if (a.esperar_ate && a.veredito !== 'cabe_parcelado_depois') {
-    return `A vista faltam ${real(Math.abs(a.a_vista.sobra_depois))} de folga. Em ${nomeMes(a.esperar_ate.mes_referencia)} a compra cabe sem aperto.`;
+    return `À vista faltam ${real(Math.abs(a.a_vista.sobra_depois))} de folga: dá em ${nomeMes(a.esperar_ate.mes_referencia)}, quando a folga do mês chega a ${real(a.esperar_ate.folga_util)}.`;
   }
   if (a.parcelado_a_partir) {
     const ap = a.parcelado_a_partir;
-    return `Comecando em ${nomeMes(ap.mes_inicio)} da para pagar em ${ap.parcelas}x de ${real(ap.valor_parcela)}; comecando neste ciclo nao cabe.`;
+    return `Começando em ${nomeMes(ap.mes_inicio)} dá para pagar em ${ap.parcelas}x de ${real(ap.valor_parcela)}; neste ciclo, nem parcelado.`;
   }
-  return `Sua folga e de ${real(a.a_vista.folga_util)} e a compra e de ${real(a.valor)}: nao cabe sem comprometer o dia a dia.`;
+  if (a.juntando && a.juntando.meses) {
+    return `${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado: guardando ${real(a.juntando.por_mes)} por mês, dá em ${a.juntando.meses} ${a.juntando.meses === 1 ? 'mês' : 'meses'}.`;
+  }
+  return `${real(a.valor)} não cabe em nenhum mês dos próximos 12, nem parcelado nem guardando a folga inteira.`;
 }
 
 // -------------------------------------------------------------------------
@@ -282,8 +308,14 @@ function numerosConferem(frase, permitidos) {
 // faz sentido em frase fechada -- "R$ 22" pode ainda virar "R$ 224,81". Uma
 // frase leva ~2s para sair, entao o texto continua aparecendo escrevendo.
 //
-// Devolve { texto, modelo, bloqueado }. `bloqueado` verdadeiro quer dizer que
-// nada do modelo passou na conferencia e quem chamou deve usar `textoDeReserva`.
+// A resposta comeca pela frase calculada (`fraseDoVeredito`), emitida antes de
+// o modelo ser chamado: ela chega em microssegundos, carrega o mes e o numero de
+// parcelas, e nao pode ser perdida por uma escolha de palavra do modelo. A prosa
+// do modelo vem depois, so com o motivo.
+//
+// Devolve { texto, modelo, prosa }. `prosa` falso quer dizer que so a frase
+// calculada saiu: modelo fora do ar, ou frase reprovada na conferencia. Nao e
+// erro -- a decisao nunca dependeu do modelo.
 async function escrever({ analise, pergunta, aoPedaco, sinal }) {
   const instrucao = briefing(analise, pergunta);
   const permitidos = numerosDe(instrucao);
@@ -297,6 +329,7 @@ async function escrever({ analise, pergunta, aoPedaco, sinal }) {
   let buffer = '';
   let emitido = '';
   let reprovou = false;
+  let doModelo = '';
 
   // O rotulo do briefing vazando na frase ja aconteceu: "VEREDITO: Cabe
   // parcelado...". A regra no prompt reduziu, nao eliminou -- modelo pequeno
@@ -310,8 +343,13 @@ async function escrever({ analise, pergunta, aoPedaco, sinal }) {
     if (aoPedaco) aoPedaco(frase);
   };
 
+  // A decisao, antes de qualquer token de modelo.
+  const decisao = `${fraseDoVeredito(analise)} `;
+  emitido += decisao;
+  if (aoPedaco) aoPedaco(decisao);
+
   const portao = (pedaco) => {
-    if (reprovou) return;
+    if (reprovou || doModelo) return;
     buffer += pedaco;
     // Quebra em frases fechadas; o pedaco final fica no buffer.
     const partes = buffer.split(/(?<=[.!?])\s+/);
@@ -322,7 +360,13 @@ async function escrever({ analise, pergunta, aoPedaco, sinal }) {
         corte.abort();
         return;
       }
+      doModelo += frase;
       soltar(`${frase} `);
+      // O motivo e UMA frase, e a geracao para na primeira: em CPU cada frase a
+      // mais custa ~4s de espera, e o modelo continuava escrevendo variacao da
+      // mesma coisa depois de ja ter respondido.
+      corte.abort();
+      return;
     }
   };
 
@@ -334,19 +378,24 @@ async function escrever({ analise, pergunta, aoPedaco, sinal }) {
     ], aoPedaco: portao, sinal: corte.signal });
     modelo = r.modelo;
   } catch (e) {
-    // Corte proprio nao e falha: e a trava funcionando.
-    if (!(reprovou && e instanceof ErroOllama)) throw e;
+    // Modelo fora do ar ou corte proprio nao derrubam a resposta: a frase da
+    // decisao ja saiu. Qualquer outro erro sobe, porque ai e bug.
+    if (!(e instanceof ErroOllama)) throw e;
+    modelo = null;
   }
 
   // Sobra do buffer: o modelo pode terminar sem pontuacao final.
-  if (!reprovou && buffer.trim() && numerosConferem(buffer, permitidos)
-    && mesesConferem(buffer, mesesPermitidos)) soltar(buffer);
+  if (!reprovou && !doModelo && buffer.trim() && numerosConferem(buffer, permitidos)
+    && mesesConferem(buffer, mesesPermitidos)) {
+    doModelo += buffer;
+    soltar(buffer);
+  }
 
-  return { texto: emitido.trim(), modelo, bloqueado: !emitido.trim() };
+  return { texto: emitido.trim(), modelo, prosa: Boolean(doModelo.trim()) };
 }
 
 module.exports = {
-  escrever, briefing, textoDeReserva,
+  escrever, briefing, fraseDoVeredito,
   numerosConferem, numerosDe, mesesConferem, mesesDe,
   VEREDITOS,
 };

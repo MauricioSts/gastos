@@ -11,7 +11,7 @@
 // desperdicaria os 10s em que a decisao ja esta pronta.
 const express = require('express');
 const { lerCompra, analisarCompra, analisarGeral } = require('../services/consultorService');
-const { escrever, textoDeReserva, VEREDITOS } = require('../services/conselho');
+const { escrever, fraseDoVeredito, VEREDITOS } = require('../services/conselho');
 const { ErroOllama } = require('../services/ollama');
 const { ErroApi, limparTexto, LIMITE_MENSAGEM } = require('../utils/validacao');
 const ciclo = require('../utils/ciclo');
@@ -61,21 +61,12 @@ function corpoAnalise(pergunta, analise) {
 router.post('/consultor', async (req, res, next) => {
   try {
     const { pergunta, analise } = prepararAnalise(req.body || {});
-    let texto;
-    let modelo = null;
-    try {
-      const r = await escrever({ analise, pergunta, sinal: req.signal });
-      // Texto reprovado na conferencia de numero cai para a frase calculada:
-      // resposta menos bonita, nunca resposta errada.
-      texto = r.bloqueado ? textoDeReserva(analise) : r.texto;
-      modelo = r.bloqueado ? null : r.modelo;
-    } catch (e) {
-      // Modelo fora do ar nao derruba a resposta: a decisao nao dependia dele.
-      if (!(e instanceof ErroOllama)) throw e;
-      texto = textoDeReserva(analise);
-      modelo = null;
-    }
-    res.json({ ...corpoAnalise(pergunta, analise), texto, modelo });
+    // `escrever` ja comeca pela frase calculada e nao levanta ErroOllama: o
+    // pior caso e a resposta sair so com ela, sem a prosa do motivo.
+    const r = await escrever({ analise, pergunta, sinal: req.signal });
+    res.json({
+      ...corpoAnalise(pergunta, analise), texto: r.texto, modelo: r.modelo, prosa: r.prosa,
+    });
   } catch (e) {
     next(e);
   }
@@ -115,27 +106,20 @@ router.post('/consultor/stream', async (req, res, next) => {
   enviar('analise', corpoAnalise(pergunta, analise));
 
   try {
+    // O primeiro `pedaco` e a frase da decisao, que sai antes de o modelo ser
+    // chamado: no app o veredito aparece escrito na hora e so o motivo demora.
     const r = await escrever({
       analise,
       pergunta,
       sinal: req.signal,
       aoPedaco: (pedaco) => enviar('pedaco', { texto: pedaco }),
     });
-    if (r.bloqueado) {
-      // Nada do modelo passou na conferencia: nenhum pedaco foi enviado ainda,
-      // entao a frase calculada entra no lugar sem o app ter de apagar nada.
-      const reserva = textoDeReserva(analise);
-      enviar('pedaco', { texto: reserva });
-      enviar('fim', { texto: reserva, modelo: null, reserva: true });
-    } else {
-      enviar('fim', { texto: r.texto, modelo: r.modelo });
-    }
+    enviar('fim', { texto: r.texto, modelo: r.modelo, prosa: r.prosa });
   } catch (e) {
     if (e instanceof ErroOllama) {
-      // Mesma degradacao do endpoint fechado: manda a frase de reserva e
-      // encerra normalmente. Para o app, o conselho chegou.
-      enviar('pedaco', { texto: textoDeReserva(analise) });
-      enviar('fim', { texto: textoDeReserva(analise), modelo: null, reserva: true });
+      // Nao deve acontecer: `escrever` engole ErroOllama. Se acontecer, a frase
+      // calculada ja foi enviada como pedaco, entao so fecha o stream.
+      enviar('fim', { texto: fraseDoVeredito(analise), modelo: null, prosa: false });
     } else {
       enviar('erro', { erro: e.message || 'Falha ao gerar o conselho.' });
     }

@@ -227,6 +227,16 @@ próprio ritmo de gasto ainda vai consumir até a fatura fechar. Quem tem R$ 400
 disponíveis e gasta R$ 25 por dia com 17 dias de ciclo pela frente não tem
 R$ 400 para uma compra.
 
+Dois vereditos existem porque a folga sozinha responde mal a duas perguntas
+comuns, e a tela tem linha própria para cada um:
+
+- `cabe_no_ritmo` — a compra é pequena e cabe no **gasto de hoje**, não na
+  folga do ciclo. Um café de R$ 8 não é gasto extra; testá-lo contra a folga
+  reprovava café sempre que o ciclo estava apertado.
+- `cabe_parcelado_depois` — começando neste ciclo nada cabe, mas começando num
+  mês futuro cabe. A linha mostra as parcelas e o mês de início, que é a resposta
+  de "quando eu consigo, e em quantas vezes?".
+
 ## Direção visual
 
 Terminal industrial: painel de instrumentos escuro com fósforo verde. Nada de

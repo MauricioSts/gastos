@@ -813,6 +813,9 @@ Resposta:
     "a_vista": { "cabe": false, "folga_util": -16.55, "sobra_depois": -316.55 },
     "parcelado_pedido": null,
     "parcelado_sugerido": null,
+    "parcelado_a_partir": { "mes_inicio": "2026-10", "parcelas": 3,
+                            "valor_parcela": 100, "meses_afetados": [] },
+    "dentro_do_ritmo": { "cabe": false, "cabe_hoje": 23.58, "gasto_hoje": 0 },
     "esperar_ate": { "mes_referencia": "2027-01", "folga_util": 526.97 },
     "juntando": { "meses": 2, "mes_referencia": "2026-11", "por_mes": 150 },
     "alivios": [
@@ -831,9 +834,11 @@ Vereditos possíveis:
 | `veredito` | Significa |
 |---|---|
 | `cabe_agora` | A folga com margem paga a compra à vista |
-| `cabe_parcelado` | À vista não cabe, mas existe parcelamento que cabe em **todos** os meses afetados |
-| `esperar` | Nenhum parcelamento cabe, mas há um mês futuro em que a compra cabe à vista |
-| `nao_cabe` | Não cabe em 12 meses de projeção |
+| `cabe_no_ritmo` | Não cabe na folga, mas cabe no gasto de hoje (ver abaixo) |
+| `cabe_parcelado` | À vista não cabe, mas existe parcelamento que cabe em **todos** os meses afetados, começando agora |
+| `cabe_parcelado_depois` | Começando neste ciclo não cabe; começando num mês futuro, cabe — `parcelado_a_partir` diz qual mês e em quantas vezes |
+| `esperar` | Nenhum parcelamento cabe antes, mas há um mês futuro em que a compra cabe à vista |
+| `nao_cabe` | Não cabe em 12 meses de projeção, de nenhuma forma |
 | `sem_renda` | Sem renda cadastrada no ciclo não há o que calcular |
 | `contexto` | Pergunta sem compra: a resposta é a fotografia do ciclo |
 
@@ -843,8 +848,23 @@ são respostas legítimas para "quando".
 
 Um parcelamento só é aprovado se a parcela cabe em cada um dos meses que ela
 atinge. Testar apenas o primeiro mês é o erro clássico: a parcela 9 cai num mês
-que talvez já esteja cheio de outra coisa. A primeira parcela entra no ciclo
-aberto, então mês corrente sem folga reprova qualquer parcelamento.
+que talvez já esteja cheio de outra coisa.
+
+`parcelado_a_partir` existe porque a primeira parcela entra no ciclo aberto: com
+o ciclo corrente já estourado, **nenhum** número de parcelas passava, e a
+pergunta "quando eu consigo, e em quantas vezes?" ficava literalmente sem
+resposta — o veredito caía em `nao_cabe`. A busca varre mês de início (1 a 12) e
+número de parcelas (2, 3, 4, 5, 6, 10, 12) e devolve o primeiro par que cabe
+inteiro, mês mais cedo primeiro, menos parcelas primeiro. Quando o usuário diz
+um número de parcelas, esse número é testado antes dos usuais: respeitar o que
+ele pediu vale mais que economizar um mês.
+
+`cabe_no_ritmo` resolve a pergunta mais comum do app, e o erro era grosseiro: um
+café de R$ 8 era testado contra a folga — o que sobra **depois** do ritmo de
+vida — e reprovado sempre que o ciclo estava apertado. Café não é gasto extra, é
+o ritmo. Compra até `retrato.cabe_hoje` (o que ainda cabe hoje sem estourar o
+ritmo) recebe este veredito, e o briefing do modelo encurta para 4 linhas: é a
+pergunta que mais se repete, e cada linha de prompt custa ~23ms de leitura.
 
 ### `POST /api/consultor/stream` — a mesma coisa em SSE
 
@@ -918,7 +938,20 @@ gastos-api/
 │   └── utils/                 datas (timezone) e validação
 ├── deploy/                    unit systemd + snippet do Caddy
 ├── data/gastos.db             banco (criado no primeiro boot)
-└── test.sh                    teste de fumaça das rotas
+├── test.sh                    teste de fumaça das rotas (35 checks, HTTP)
+├── teste-atalho.js            atalho sem LLM (19 casos)
+├── teste-ciclo.js             ciclo da fatura (16 casos)
+├── teste-classificacao.js     matriz de classificação do LLM (18 casos)
+└── teste-consultor.js         veredito e briefing do consultor (32 casos)
+```
+
+Os quatro `teste-*.js` rodam com `node`. `teste-consultor.js` cria e apaga o seu
+próprio banco (`data/teste-consultor.db`); `./test.sh` **suja o banco da
+instância que ele ataca**, então aponte-o para uma instância isolada:
+
+```bash
+PORT=3400 DB_PATH=data/teste.db node src/server.js &
+BASE=http://localhost:3400 ./test.sh
 ```
 
 As rotas só orquestram: toda regra de negócio vive em `src/services/`.
@@ -1030,17 +1063,37 @@ Medições nesta VM com `qwen2.5:3b` quente:
 | Etapa | Tempo |
 |---|---|
 | Análise completa (veredito, meses, folgas) | **~50ms** — é só SQLite e aritmética |
-| Primeira frase do texto no ar | ~3 a 9s |
-| Texto inteiro (3 frases) | ~6 a 12s |
+| Primeira frase do texto no ar | ~3 a 6s |
+| Resposta inteira (2 frases) | ~8 a 15s |
 
-O prompt custa ~25ms por token só para ser lido, antes da primeira palavra sair.
-Por isso o briefing é montado em volta do veredito e manda apenas as linhas que
-o sustentam: a primeira versão mandava o retrato financeiro inteiro em toda
-pergunta, gastava 312 tokens e dobrava a espera sem mudar a resposta. A versão
-atual gasta ~143.
+Medido nesta VM (4 vCPU, sem GPU) com o prompt inteiro em 440 tokens:
 
-Trocar para `qwen2.5:7b` só no consultor melhora a prosa e custa ~2x o tempo de
-geração:
+| | `qwen2.5:3b` | `qwen2.5:7b` |
+|---|---|---|
+| Ler o prompt (cacheado) | 0,1s | 0,2s |
+| Ler o prompt (briefing novo) | 43 tok/s | 12,6 tok/s |
+| Gerar o texto | 9,3 tok/s | 4,7 tok/s |
+| Resposta completa, modelo quente | **4s** | 9,8s |
+| Primeira resposta com o modelo frio | ~20s | 98,8s |
+
+O 3b fica. O 7b escreve uma prosa um pouco melhor e custa 2 a 3 vezes mais em
+cada pergunta — e o que corrigiu as respostas confusas não foi modelo maior, foi
+tirar do briefing o que o modelo pequeno invertia (ver abaixo).
+
+**Contexto não é o gargalo, e aumentá-lo não ajuda.** O prompt inteiro são ~440
+tokens dentro de uma janela de 4096: nunca houve truncamento para consertar.
+Subir `num_ctx` só reserva mais RAM para KV cache. O que custa tempo é ler o
+prompt a 43 tok/s — cada 43 tokens de briefing são 1s de espera antes da
+primeira palavra — então mandar MAIS contexto deixa a resposta mais lenta, não
+mais inteligente. O ganho está em curar quais números entram, não em mandar
+todos.
+
+**O modelo mora na RAM de propósito.** `OLLAMA_KEEP_ALIVE=-1` mantém o 3b
+residente: 2,4 GB dos 23 GB da VM. Deixar o Ollama descarregar por inatividade
+devolveria essa RAM e cobraria 20-40s de carga na primeira pergunta de cada uso
+— exatamente no momento em que alguém está esperando resposta.
+
+Trocar para `qwen2.5:7b` só no consultor:
 
 ```bash
 sed -i 's|^OLLAMA_MODEL_CONSELHO=.*|OLLAMA_MODEL_CONSELHO=qwen2.5:7b|' .env
@@ -1048,7 +1101,22 @@ sudo systemctl restart gastos-api
 ```
 
 Vale a conta se o 7B ficar quente na RAM (`OLLAMA_KEEP_ALIVE`); carregá-lo do
-zero custa ~45s, e ele ainda desaloja o 3B que atende o lançamento de gasto.
+zero custa ~45s e ele ocupa ~5,5 GB ao lado do 3B que atende o lançamento de
+gasto.
+
+### O que o modelo pequeno errava, e como cada erro foi barrado
+
+Nenhum destes é hipótese: todos saíram do `qwen2.5:3b` respondendo perguntas
+reais deste banco.
+
+| Saída errada | Causa | Conserto |
+|---|---|---|
+| "apenas R$ 16,55 de folga real" para uma folga de **−**16,55 | número negativo no briefing; o modelo perde o sinal | folga e disponível negativos vão em palavra ("nenhuma", "o ciclo já está R$ 100,00 no negativo") |
+| "começando em novembro de 2026" quando a conta dizia out/2026 | mês inventado, que a conferência de número não pega | `mesesConferem` barra a frase que cita mês ausente do briefing, por abreviação ou nome inteiro |
+| "faltam R$ 14,67 para a próxima parcela" (era a sobra do mês mais apertado) | número que o modelo inverte | o detalhe do mês mais apertado saiu do briefing |
+| "a compra deixa a última parcela do Monitor Gamer sem folga" | o item que está **acabando** lido como o item da pergunta | alívio só entra no briefing quando é o argumento da espera |
+| "VEREDITO: cabe parcelado…" / "Decisão: …" | modelo pequeno copia o formato do que lê | rótulo proibido no prompt e removido do início da frase no código |
+| "junta em 5 meses" misturado com "parcele em 10x" | duas alternativas competindo no mesmo briefing | com saída parcelada decidida, a linha de juntar dinheiro sai |
 
 ## Solução de problemas
 

@@ -159,23 +159,33 @@ function retrato(mesBase) {
 // e testada: usar a folga cheia aprova compra que so cabe no mes perfeito.
 const folgaUtil = (folga) => (folga === null ? null : emCentavos(folga * (1 - MARGEM)));
 
+// Linha do tempo de folgas, do ciclo aberto ate o fim do horizonte. Indice 0 e
+// o ciclo aberto (folga parcial, so o que resta dele); 1 em diante sao os meses
+// projetados inteiros. Existe para que a simulacao possa comecar em qualquer
+// mes sem duplicar a conta do ciclo corrente.
+function linhaDeFolgas(foto) {
+  return [
+    { mes_referencia: foto.mes_referencia, folga: foto.folga_atual },
+    ...foto.meses_futuros.map((m) => ({ mes_referencia: m.mes_referencia, folga: m.folga })),
+  ];
+}
+
 // Um parcelamento de N vezes cabe se TODOS os N ciclos afetados suportam a
 // parcela. Testar so o primeiro mes e o erro classico: a parcela 9 cai num mes
 // que talvez ja esteja cheio de outra coisa.
-function testarParcelamento(foto, valor, n) {
+//
+// `inicio` e o indice na linha de folgas em que a primeira parcela cai: 0 e
+// "compro agora", 1 e "compro no ciclo que vem". Cobrar a primeira parcela do
+// ciclo aberto quando ele ja esta estourado reprova qualquer numero de
+// parcelas, e era por isso que a pergunta "em quantas parcelas eu consigo"
+// ficava sem resposta.
+function testarParcelamento(foto, valor, n, inicio = 0) {
   const parcela = emCentavos(valor / n);
+  const linha = linhaDeFolgas(foto);
   const afetados = [];
 
-  // Parcela 1 entra no ciclo aberto; as seguintes, nos meses projetados.
-  const primeira = folgaUtil(foto.folga_atual);
-  afetados.push({
-    mes_referencia: foto.mes_referencia,
-    folga_util: primeira,
-    sobra_depois: primeira === null ? null : emCentavos(primeira - parcela),
-  });
-
-  for (let i = 0; i < n - 1; i += 1) {
-    const m = foto.meses_futuros[i];
+  for (let i = 0; i < n; i += 1) {
+    const m = linha[inicio + i];
     if (!m) break;
     const util = folgaUtil(m.folga);
     afetados.push({
@@ -192,10 +202,28 @@ function testarParcelamento(foto, valor, n) {
   return {
     parcelas: n,
     valor_parcela: parcela,
-    cabe: afetados.every((m) => m.sobra_depois !== null && m.sobra_depois >= 0),
+    // Menos meses simulados que parcelas = a ultima parcela cai fora do
+    // horizonte, e ai nao ha como afirmar que cabe.
+    cabe: afetados.length === n && afetados.every((m) => m.sobra_depois !== null && m.sobra_depois >= 0),
     mes_mais_apertado: apertado,
     meses_afetados: afetados,
   };
+}
+
+// Primeiro mes em que da para COMECAR um parcelamento que cabe inteiro, com o
+// menor numero de parcelas possivel. Responde "quando e em quantas vezes" numa
+// so resposta -- a pergunta que o usuario faz quando o preco nao cabe hoje.
+function parceladoAPartirDe(foto, valor, preferidas = PARCELAS_USUAIS) {
+  const linha = linhaDeFolgas(foto);
+  // Comeca em 1: o indice 0 e o "compro agora", que quem chama ja testou.
+  for (let inicio = 1; inicio < linha.length; inicio += 1) {
+    for (const n of preferidas) {
+      if (inicio + n > linha.length) continue;
+      const t = testarParcelamento(foto, valor, n, inicio);
+      if (t.cabe) return { ...t, mes_inicio: linha[inicio].mes_referencia };
+    }
+  }
+  return null;
 }
 
 // Primeiro mes futuro cuja folga sozinha paga a compra a vista.
@@ -242,6 +270,13 @@ function analisarCompra({ valor, parcelas = null, mes }) {
   const folgaUtilAtual = folgaUtil(foto.folga_atual);
   const cabeAgora = folgaUtilAtual !== null && folgaUtilAtual >= valor;
 
+  // Compra pequena e outro problema: um cafe de R$ 8 nao e gasto EXTRA, e o
+  // ritmo do dia. Testar o cafe contra a folga (o que sobra DEPOIS do ritmo)
+  // reprovava qualquer compra sempre que o ciclo estava apertado, e a resposta
+  // saia absurda para a pergunta mais comum do app.
+  const cabeHoje = foto.cabe_hoje;
+  const cabeNoRitmo = !cabeAgora && cabeHoje !== null && cabeHoje > 0 && valor <= cabeHoje;
+
   // Parcelamento: testa o que o usuario pediu e, se ele nao pediu nada, o
   // menor numero de parcelas que cabe -- menos meses travados e melhor.
   const pedido = parcelas && parcelas > 1 ? testarParcelamento(foto, valor, Math.min(parcelas, HORIZONTE)) : null;
@@ -252,6 +287,15 @@ function analisarCompra({ valor, parcelas = null, mes }) {
       if (t.cabe) { sugerido = t; break; }
     }
   }
+
+  // Nada cabe comecando agora: procura o primeiro mes em que da para COMECAR
+  // parcelado. Se o usuario disse um numero de parcelas, esse numero e testado
+  // primeiro -- respeitar o que ele pediu vale mais que economizar um mes.
+  const aPartir = (cabeAgora || (pedido && pedido.cabe) || sugerido)
+    ? null
+    : parceladoAPartirDe(foto, valor, pedido
+      ? [pedido.parcelas, ...PARCELAS_USUAIS.filter((n) => n !== pedido.parcelas)]
+      : PARCELAS_USUAIS);
 
   const proximoMes = cabeAgora ? null : primeiroMesQueCabe(foto, valor);
   const juntando = cabeAgora ? null : mesesGuardando(foto, valor);
@@ -269,8 +313,12 @@ function analisarCompra({ valor, parcelas = null, mes }) {
 
   let veredito;
   if (cabeAgora) veredito = 'cabe_agora';
+  else if (cabeNoRitmo) veredito = 'cabe_no_ritmo';
   else if (pedido && pedido.cabe) veredito = 'cabe_parcelado';
   else if (sugerido) veredito = 'cabe_parcelado';
+  // Entre esperar para pagar a vista e comecar a parcelar, ganha o que chega
+  // primeiro: quem pergunta "quando" quer a data mais proxima em que da.
+  else if (aPartir && (!proximoMes || aPartir.mes_inicio < proximoMes.mes_referencia)) veredito = 'cabe_parcelado_depois';
   else if (proximoMes) veredito = 'esperar';
   else veredito = 'nao_cabe';
 
@@ -287,8 +335,15 @@ function analisarCompra({ valor, parcelas = null, mes }) {
         ? null
         : emCentavos(valor / foto.dias_restantes),
     },
+    // Cabe dentro do gasto do dia, sem mexer na folga do ciclo.
+    dentro_do_ritmo: {
+      cabe: cabeNoRitmo,
+      cabe_hoje: cabeHoje,
+      gasto_hoje: foto.gasto_hoje,
+    },
     parcelado_pedido: pedido,
     parcelado_sugerido: sugerido,
+    parcelado_a_partir: aPartir,
     esperar_ate: proximoMes,
     juntando,
     alivios,

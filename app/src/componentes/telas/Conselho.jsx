@@ -24,7 +24,11 @@ const EXEMPLOS = [
 // Cada veredito tem cor própria: a cor é a resposta lida antes do texto.
 const CORES = {
   cabe_agora: cor.fosforo,
+  // Cabe dentro do gasto do dia: é um sim, mas um sim pequeno — a cor é a do
+  // sim, e o sinal é que muda.
+  cabe_no_ritmo: cor.fosforo,
   cabe_parcelado: cor.atencao,
+  cabe_parcelado_depois: cor.atencao,
   esperar: cor.atencao,
   nao_cabe: cor.alerta,
   sem_renda: cor.alerta,
@@ -33,7 +37,9 @@ const CORES = {
 
 const SINAL = {
   cabe_agora: '✓',
+  cabe_no_ritmo: '·',
   cabe_parcelado: '≈',
+  cabe_parcelado_depois: '≈',
   esperar: '⏳',
   nao_cabe: '✕',
   sem_renda: '!',
@@ -104,6 +110,27 @@ function Conta({ a }) {
           texto={`Em ${parc.parcelas}× de ${fmt0(parc.valor_parcela)}`}
           valor={parc.cabe ? 'cabe' : 'não cabe'}
           corValor={parc.cabe ? cor.fosforo : cor.alerta}
+        />
+      )}
+
+      {/* Parcelamento que só cabe começando mais para frente: sem o mês de
+          início a linha diria "cabe" sobre um plano que não cabe hoje. */}
+      {a.parcelado_a_partir && (
+        <Linha
+          texto={`Em ${a.parcelado_a_partir.parcelas}× de ${fmt0(a.parcelado_a_partir.valor_parcela)}, a partir de`}
+          valor={nomeMes(a.parcelado_a_partir.mes_inicio)}
+          corValor={cor.atencao}
+          forte
+        />
+      )}
+
+      {/* Compra pequena: o que decide é o espaço do dia, não a folga do ciclo. */}
+      {a.dentro_do_ritmo && a.dentro_do_ritmo.cabe && (
+        <Linha
+          texto="Cabe hoje no ritmo"
+          valor={`R$ ${fmt(a.dentro_do_ritmo.cabe_hoje)}`}
+          corValor={cor.fosforo}
+          forte
         />
       )}
 

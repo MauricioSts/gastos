@@ -1,0 +1,36 @@
+[Unit]
+Description=Gastos API - controle de gastos com LLM local (Ollama)
+Documentation=file:///home/ubuntu/gastos-api/README.md
+# Precisa da rede e do Ollama no ar para responder /api/gastos.
+After=network-online.target ollama.service
+Wants=network-online.target
+Requires=ollama.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/gastos-api
+EnvironmentFile=/home/ubuntu/gastos-api/.env
+ExecStart=/usr/bin/node /home/ubuntu/gastos-api/src/server.js
+Restart=always
+RestartSec=5
+# Encerramento limpo: o server.js trata SIGTERM.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gastos-api
+
+# Endurecimento basico: o servico so precisa escrever na propria pasta data/.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/gastos-api/data
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

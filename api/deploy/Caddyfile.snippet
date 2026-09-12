@@ -1,0 +1,23 @@
+# Bloco para expor a Gastos API em um subdominio.
+# Troque o dominio abaixo e cole no seu /etc/caddy/Caddyfile,
+# depois rode: sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+# O Caddy cuida do HTTPS automaticamente (Let's Encrypt).
+# A API so escuta em 127.0.0.1:3334, entao o unico caminho de fora e por aqui.
+
+gastos.SEU-DOMINIO.com {
+	encode zstd gzip
+
+	# Repassa o IP real do cliente para o rate limit da aplicacao funcionar.
+	reverse_proxy 127.0.0.1:3334 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	# Log separado, util para auditar tentativa de acesso sem token.
+	log {
+		output file /var/log/caddy/gastos-api.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

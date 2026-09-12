@@ -20,7 +20,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icones/icone-32.png" />
     <link rel="icon" type="image/svg+xml" href="/icones/icone.svg" />
 
-    <!-- Splash screens do iOS: uma por resolucao de tela. -->
+    <!-- Splash screens do iOS: uma por resolucao de tela. Sao PNG estaticos --
+         o sistema os desenha antes de existir navegador, entao nao ha como
+         anima-los. A animacao vive no #splash abaixo, que assume no instante
+         em que o HTML e lido e continua a mesma imagem, agora piscando. -->
     <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png"
           media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
     <link rel="apple-touch-startup-image" href="/splash/splash-1179x2556.png"
@@ -32,13 +35,176 @@
     <link rel="apple-touch-startup-image" href="/splash/splash-1125x2436.png"
           media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <!-- O primeiro numero da tela sai da API, num dominio proprio: abrir o TLS
+         dela agora, enquanto o JS ainda baixa, economiza um ida-e-volta inteiro
+         de handshake no boot. -->
+    <link rel="preconnect" href="https://gastosapi.mauriciosts.com" crossorigin />
+
+    <!-- As duas fontes que aparecem na primeira tela (titulo e numeros). As
+         outras faces chegam pelo CSS do bundle, sem bloquear nada. -->
+    <link rel="preload" href="/fontes/chakra-700-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fontes/plexmono-400-latin.woff2" as="font" type="font/woff2" crossorigin />
 
     <title>Minimau — Gastos</title>
+
+    <!-- CSS do splash inline, de proposito: e a unica coisa que precisa pintar
+         antes de qualquer arquivo externo chegar. Pedir um .css aqui adiaria a
+         tela pelo tempo de um request. -->
+    <style>
+      html, body { height: 100%; margin: 0; background: #05080a; }
+
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #05080a;
+        /* Sai suave para o app, sem corte seco entre as duas telas. */
+        transition: opacity 0.32s ease, visibility 0.32s ease;
+      }
+      #splash.sai { opacity: 0; visibility: hidden; }
+
+      #splash svg {
+        width: 26vw;
+        max-width: 168px;
+        min-width: 96px;
+        height: auto;
+        display: block;
+        /* Respiro leve: a logo pulsa enquanto o app carrega. */
+        animation: splashRespira 2.2s ease-in-out infinite;
+      }
+
+      @keyframes splashRespira {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.035); }
+      }
+
+      /* A piscada. Duas piscadas rapidas seguidas de pausa -- olho que fecha em
+         intervalo constante parece maquina quebrada, e nao um bicho olhando.
+         O ciclo e de 1.1s e as duas piscadas acontecem nos primeiros 600ms de
+         proposito: com service worker o app fica pronto em ~150ms, e piscada
+         que comeca depois disso nunca seria vista. O splash so espera a
+         piscada terminar (ver MINIMO_MS em src/splash.js), nao o contrario. */
+      @keyframes splashPalpebraTopo {
+        0%, 14%, 100% { transform: translateY(0); }
+        19%, 24% { transform: translateY(52px); }
+        30% { transform: translateY(0); }
+        37%, 42% { transform: translateY(52px); }
+        50% { transform: translateY(0); }
+      }
+      @keyframes splashPalpebraBase {
+        0%, 14%, 100% { transform: translateY(0); }
+        19%, 24% { transform: translateY(-52px); }
+        30% { transform: translateY(0); }
+        37%, 42% { transform: translateY(-52px); }
+        50% { transform: translateY(0); }
+      }
+      /* O fosforo dos circuitos acompanha a piscada: apaga junto com o olho. */
+      @keyframes splashFosforo {
+        0%, 14%, 100% { opacity: 0.95; }
+        19%, 42% { opacity: 0.35; }
+      }
+      #splash .palpebra-topo { animation: splashPalpebraTopo 1.1s cubic-bezier(0.4, 0, 0.3, 1) infinite; }
+      #splash .palpebra-base { animation: splashPalpebraBase 1.1s cubic-bezier(0.4, 0, 0.3, 1) infinite; }
+      #splash .fosforo { animation: splashFosforo 1.1s ease-in-out infinite; }
+
+      /* Quem pediu menos movimento no sistema recebe a logo parada. */
+      @media (prefers-reduced-motion: reduce) {
+        #splash svg, #splash .palpebra-topo, #splash .palpebra-base, #splash .fosforo {
+          animation: none !important;
+        }
+      }
+    </style>
   </head>
   <body>
+    <!-- Mesma cabeca do componente Logo, em SVG inline. Inline porque o splash
+         tem que aparecer sem esperar request nenhum: uma tag <img> seria mais
+         uma ida ao servidor justamente no instante que estamos tentando cortar. -->
+    <div id="splash" role="status" aria-label="Carregando o Minimau">
+      <svg viewBox="0 0 168 168" aria-hidden="true">
+        <defs>
+          <clipPath id="s-esfera"><circle cx="84" cy="84" r="80" /></clipPath>
+          <clipPath id="s-lente"><circle cx="84" cy="76" r="44" /></clipPath>
+          <radialGradient id="s-iris" cx="40%" cy="32%" r="74%">
+            <stop offset="0%" stop-color="#CDF6A2" />
+            <stop offset="26%" stop-color="#79D63A" />
+            <stop offset="64%" stop-color="#20560E" />
+            <stop offset="100%" stop-color="#040C05" />
+          </radialGradient>
+          <radialGradient id="s-volume" cx="33%" cy="24%" r="80%">
+            <stop offset="0%" stop-color="#FFFFFF" stop-opacity=".18" />
+            <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0" />
+            <stop offset="100%" stop-color="#000000" stop-opacity=".5" />
+          </radialGradient>
+          <linearGradient id="s-metal" x1="0" y1="0" x2="0.25" y2="1">
+            <stop offset="0%" stop-color="#FBFDF8" />
+            <stop offset="52%" stop-color="#DCE5D5" />
+            <stop offset="100%" stop-color="#8D9A87" />
+          </linearGradient>
+          <linearGradient id="s-placa" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="#1B2427" />
+            <stop offset="60%" stop-color="#101619" />
+            <stop offset="100%" stop-color="#070B0D" />
+          </linearGradient>
+        </defs>
+
+        <circle cx="84" cy="84" r="80" fill="url(#s-placa)" />
+        <g clip-path="url(#s-esfera)">
+          <ellipse cx="5" cy="84" rx="29" ry="66" fill="url(#s-metal)" stroke="#080C0E" stroke-width="1.8" />
+          <ellipse cx="163" cy="84" rx="29" ry="66" fill="url(#s-metal)" stroke="#080C0E" stroke-width="1.8" />
+          <path d="M84 4 v160" stroke="#080C0E" stroke-width="1.3" opacity=".45" />
+
+          <g class="fosforo" fill="none" stroke="#7CFF2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M84 12 v16 M84 20 h-18 v-14 M84 20 h18 v-14" />
+            <path d="M52 40 h-16 l-9 9 v16" />
+            <path d="M116 40 h16 l9 9 v16" />
+            <path d="M44 112 l-12 12 v10" />
+            <path d="M124 112 l12 12 v10" />
+            <path d="M68 130 v14 h-16" />
+            <path d="M100 130 v14 h16" />
+          </g>
+          <g fill="#7CFF2E">
+            <circle cx="66" cy="6" r="2.8" /><circle cx="102" cy="6" r="2.8" />
+            <circle cx="52" cy="144" r="2.8" /><circle cx="116" cy="144" r="2.8" />
+          </g>
+
+          <circle cx="34" cy="136" r="15" fill="#0A0F11" stroke="#7CFF2E" stroke-width="7" stroke-dasharray="5 6.5" opacity=".85" />
+          <circle cx="34" cy="136" r="6" fill="#7CFF2E" opacity=".9" />
+          <circle cx="134" cy="136" r="15" fill="#0A0F11" stroke="#7CFF2E" stroke-width="7" stroke-dasharray="5 6.5" opacity=".85" />
+          <circle cx="134" cy="136" r="6" fill="#7CFF2E" opacity=".9" />
+
+          <circle cx="84" cy="76" r="48" fill="#1E2A2C" stroke="#080C0E" stroke-width="2.2" />
+          <circle cx="84" cy="76" r="48" fill="none" stroke="#EDF3E9" stroke-width="2" stroke-opacity=".3" />
+          <circle cx="84" cy="76" r="43" fill="none" stroke="#0A0F11" stroke-width="5.5" stroke-dasharray="10 8" />
+          <circle cx="84" cy="76" r="37" fill="#070C0D" />
+          <g clip-path="url(#s-lente)">
+            <circle cx="84" cy="76" r="31" fill="url(#s-iris)" />
+            <circle cx="84" cy="76" r="24" fill="none" stroke="#04120A" stroke-width="2" stroke-opacity=".5" />
+            <circle cx="84" cy="76" r="16" fill="none" stroke="#04120A" stroke-width="2" stroke-opacity=".5" />
+            <circle cx="84" cy="76" r="8.5" fill="#04100A" />
+            <circle cx="84" cy="76" r="8.5" fill="#C9FF8F" opacity=".8" />
+            <circle cx="84" cy="76" r="3" fill="#F4FFE6" opacity=".9" />
+            <path d="M62 52 a30 30 0 0 1 24 -10 a34 34 0 0 0 -29 19 z" fill="#FFFFFF" opacity=".45" />
+            <ellipse cx="101" cy="99" rx="11" ry="4.5" fill="#FFFFFF" opacity=".13" />
+            <g class="palpebra-topo">
+              <rect x="32" y="-30" width="104" height="58" fill="#141C1F" />
+              <rect x="32" y="24" width="104" height="3.2" fill="#7CFF2E" opacity=".55" />
+            </g>
+            <g class="palpebra-base">
+              <rect x="32" y="124" width="104" height="58" fill="#141C1F" />
+              <rect x="32" y="124" width="104" height="3.2" fill="#7CFF2E" opacity=".4" />
+            </g>
+          </g>
+
+          <circle cx="84" cy="84" r="80" fill="url(#s-volume)" />
+        </g>
+        <circle cx="84" cy="84" r="80" fill="none" stroke="#080C0E" stroke-width="2.6" />
+        <circle cx="84" cy="84" r="81.4" fill="none" stroke="#9BFF3B" stroke-width="1.2" stroke-opacity=".38" />
+      </svg>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

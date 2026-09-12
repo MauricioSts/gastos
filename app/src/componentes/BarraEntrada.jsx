@@ -8,6 +8,7 @@ const TELAS = [
   ['painel', 'Painel'],
   ['historico', 'Histórico'],
   ['compromissos', 'Travado'],
+  ['conselho', 'Consultor'],
   ['config', 'Ajustes'],
 ];
 
@@ -16,7 +17,10 @@ const TELAS = [
 // em português normal é a interação principal, não um atalho.
 export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, tela, aoNavegar, aoErro }) {
   const [ouvindo, setOuvindo] = useState(false);
-  const placeholder = usePlaceholder();
+  // No consultor a mesma barra pergunta em vez de lançar; o placeholder e o
+  // rótulo do botão mudam para a pessoa saber o que vai acontecer.
+  const consultando = tela === 'conselho';
+  const placeholder = usePlaceholder(consultando ? 'conselho' : 'lancamento');
   const reconhecimento = useRef(null);
 
   // Web Speech API. Sem suporte, avisa de leve — nunca alert.
@@ -44,6 +48,9 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
 
   const ativo = (t) => tela === t || (t === 'compromissos' && tela === 'projecao');
 
+  // Seis abas em tela de 375px: o rótulo precisa caber sem quebrar linha.
+  const largura = `${100 / TELAS.length}%`;
+
   return (
     <div style={{
       flex: 'none', position: 'relative', zIndex: 30,
@@ -60,7 +67,7 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
           onChange={(e) => aoMudar(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') aoEnviar(); }}
           placeholder={placeholder}
-          aria-label="Escreva o gasto"
+          aria-label={consultando ? 'Escreva sua dúvida' : 'Escreva o gasto'}
           enterKeyHint="send"
           style={{
             flex: 1, width: '100%', boxSizing: 'border-box', border: `1px solid ${cor.linhaViva}`,
@@ -71,7 +78,7 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
         <button
           type="button"
           onClick={ditar}
-          aria-label={ouvindo ? 'Parar de ouvir' : 'Ditar gasto'}
+          aria-label={ouvindo ? 'Parar de ouvir' : consultando ? 'Ditar a pergunta' : 'Ditar gasto'}
           style={{
             width: 46, height: 46, flex: 'none', borderRadius: 23, border: `1px solid ${cor.linhaViva}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
@@ -84,7 +91,7 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
         <button
           type="button"
           onClick={aoEnviar}
-          aria-label="Registrar"
+          aria-label={consultando ? 'Perguntar' : 'Registrar'}
           style={{
             width: 46, height: 46, flex: 'none', borderRadius: 23, background: cor.fosforo,
             color: cor.fundo, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -106,9 +113,10 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
               onClick={() => aoNavegar(t)}
               aria-current={on ? 'page' : undefined}
               style={{
-                flex: 1, minHeight: 44, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                flex: `0 0 ${largura}`, minWidth: 0, minHeight: 44,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
                 justifyContent: 'center', gap: 5, fontFamily: MONO, fontSize: 8.5,
-                letterSpacing: '.12em', textTransform: 'uppercase',
+                letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
                 color: on ? cor.fosforo : 'rgba(237,243,233,.38)',
               }}
             >

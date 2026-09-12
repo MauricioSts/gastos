@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
 import { nomeMes, LISTA_CAT, ROTULO_CAT } from './api';
 import { leValor, fmt, fmt0 } from './utils/formato';
@@ -6,6 +6,7 @@ import { vibrar } from './hooks/useVibrar';
 import { useTecladoIOS } from './hooks/useTecladoIOS';
 import { cor, MONO, corCategoria } from './tema';
 
+import { esconderSplash } from './splash';
 import Logo from './componentes/Logo';
 import BarraEntrada from './componentes/BarraEntrada';
 import FaixaErro from './componentes/FaixaErro';
@@ -13,12 +14,17 @@ import Notificacao from './componentes/Notificacao';
 import CardConfirmacao from './componentes/CardConfirmacao';
 import CardSugestao from './componentes/CardSugestao';
 import Home from './componentes/telas/Home';
-import Painel from './componentes/telas/Painel';
-import Historico from './componentes/telas/Historico';
-import Compromissos from './componentes/telas/Compromissos';
-import Projecao from './componentes/telas/Projecao';
-import Ajustes from './componentes/telas/Ajustes';
-import Onboarding from './componentes/telas/Onboarding';
+
+// A Home vem no bundle principal; as outras telas chegam quando a pessoa abre
+// cada uma. No celular o que importa e o tempo ate a PRIMEIRA tela aparecer, e
+// grafico, historico e ajustes nao participam dele.
+const Painel = lazy(() => import('./componentes/telas/Painel'));
+const Historico = lazy(() => import('./componentes/telas/Historico'));
+const Compromissos = lazy(() => import('./componentes/telas/Compromissos'));
+const Projecao = lazy(() => import('./componentes/telas/Projecao'));
+const Ajustes = lazy(() => import('./componentes/telas/Ajustes'));
+const Onboarding = lazy(() => import('./componentes/telas/Onboarding'));
+const Conselho = lazy(() => import('./componentes/telas/Conselho'));
 
 const TITULOS = {
   home: 'hoje',
@@ -26,6 +32,7 @@ const TITULOS = {
   historico: 'histórico',
   compromissos: 'travado',
   projecao: 'projeção',
+  conselho: 'consultor',
   config: 'ajustes',
 };
 
@@ -64,53 +71,83 @@ export default function App() {
   const [avisoAberto, setAvisoAberto] = useState(false);
   const [avisoDispensado, setAvisoDispensado] = useState(false);
 
+  // Retrato do ultimo boot, vindo do localStorage: a tela abre com numero em
+  // vez de vazio enquanto a resposta fresca nao chega. `desatualizado` diz que
+  // o que esta na tela e desse retrato, nao do servidor -- saldo velho com cara
+  // de atual seria o erro mais caro que este app pode cometer.
+  const [desatualizado, setDesatualizado] = useState(false);
+
+  // Pergunta ao consultor financeiro. Mora aqui, e nao na tela, para a resposta
+  // sobreviver a uma ida ao Painel e volta.
+  const [consulta, setConsulta] = useState(null);
+  const consultaEmCurso = useRef(null);
+
   // -------------------------------------------------------------------------
   // Carga
   // -------------------------------------------------------------------------
 
-  const recarregar = useCallback(async (mesAlvo = mes) => {
+  // Aplica um boot (do servidor ou do snapshot) em todos os estados de uma vez.
+  const aplicarBoot = useCallback((b) => {
+    setCicloAtual(b.cicloAtual);
+    setMes(b.mes);
+    setCiclo(b.ciclo);
+    setSaldo(b.saldo);
+    setGastos(b.gastos);
+    setPainel(b.painel);
+    setCompromissos(b.compromissos);
+    setProjecao(b.projecao);
+    setRendas(b.rendas);
+  }, []);
+
+  // Uma requisição para o ciclo inteiro. Antes eram oito, em duas rodadas de
+  // rede em série (`/ciclo` e só então o resto, porque nenhum número pode ser
+  // pedido sem saber que ciclo está aberto). No celular cada rodada custa um
+  // ida-e-volta completo, e a primeira ainda paga DNS e TLS da API.
+  const carregar = useCallback(async (mesAlvo) => {
     try {
-      const [s, g, p, c, pr, rd, jn] = await Promise.all([
-        api.getSaldo(mesAlvo),
-        api.getGastos(mesAlvo),
-        api.getPainel(mesAlvo),
-        api.getCompromissos(mesAlvo),
-        api.getProjecao(6, mesAlvo),
-        api.getRendas(mesAlvo),
-        api.getCiclo(mesAlvo),
-      ]);
-      setSaldo(s);
-      setGastos(g);
-      setPainel(p);
-      setCompromissos(c);
-      setProjecao(pr);
-      setRendas(rd);
-      setCiclo(jn);
+      const b = await api.getBoot(mesAlvo);
+      aplicarBoot(b);
+      setDesatualizado(false);
       // Sem renda o saldo não significa nada: o onboarding é obrigatório.
       // Esta carga só ABRE o onboarding; quem fecha é o último passo ou o
       // "pular" — senão salvar a renda no passo 1 derrubaria os passos 2 e 3.
       // Só dispara no ciclo corrente: um mês futuro sem renda não é motivo
       // para refazer a configuração inicial.
-      if (mesAlvo === cicloAtual) setOnboardando((aberto) => aberto || !s.renda_definida);
+      if (b.mes === b.cicloAtual) setOnboardando((aberto) => aberto || !b.saldo.renda_definida);
       setErro('');
     } catch (e) {
       setErro(e.message || 'Falha ao buscar os dados do mês.');
     } finally {
       setCarregando(false);
     }
-  }, [mes, cicloAtual]);
+  }, [aplicarBoot]);
 
-  // Descobre o ciclo aberto antes da primeira carga. Se a chamada falhar, cai
-  // no mês do calendário: melhor mostrar o período quase certo do que nada.
+  // Recarga depois de gravar algo: sempre o mês que está na tela.
+  const recarregar = useCallback((mesAlvo = mes) => carregar(mesAlvo), [carregar, mes]);
+
+  // Boot. O snapshot pinta a tela na hora; a requisição real substitui tudo em
+  // seguida. Sem mês: é o backend que sabe qual ciclo está aberto (dia 29 já
+  // pertence ao seguinte), então perguntar é mais barato que adivinhar errado.
   useEffect(() => {
-    let vivo = true;
-    api.getCiclo()
-      .then((c) => { if (vivo) { setCicloAtual(c.ciclo_atual); setMes(c.ciclo_atual); } })
-      .catch(() => { if (vivo) { setCicloAtual(api.hoje.mes); setMes(api.hoje.mes); } });
-    return () => { vivo = false; };
-  }, []);
+    const snap = api.lerSnapshot();
+    if (snap) {
+      aplicarBoot(snap);
+      setDesatualizado(true);
+      setCarregando(false);
+    }
+    carregar(undefined);
+  }, [aplicarBoot, carregar]);
 
-  useEffect(() => { if (mes) recarregar(mes); }, [mes, recarregar]);
+  // O splash sai quando existe conteúdo — não quando o JS terminou de carregar.
+  useEffect(() => {
+    if (!carregando) esconderSplash();
+  }, [carregando]);
+
+  // Erro no boot sem nada na tela também encerra o splash: ficar na logo
+  // piscando para sempre esconderia a mensagem de erro.
+  useEffect(() => {
+    if (erro) esconderSplash();
+  }, [erro]);
 
   // -------------------------------------------------------------------------
   // Números derivados do dia
@@ -163,7 +200,57 @@ export default function App() {
   // Entrada de lançamento
   // -------------------------------------------------------------------------
 
+  // Pergunta ao consultor. A resposta chega em duas ondas: `aoAnalise` traz o
+  // veredito e os números (conta de banco, milissegundos) e `aoTexto` traz a
+  // frase pedaço por pedaço (LLM local, segundos). A tela mostra a primeira
+  // onda de imediato em vez de esperar a segunda.
+  const perguntar = async (bruto) => {
+    const pergunta = (bruto ?? entrada).trim();
+    if (!pergunta || processando) return;
+
+    // Pergunta nova cancela a anterior: sem isto dois streams escreveriam no
+    // mesmo texto, intercalados.
+    consultaEmCurso.current?.abort();
+    const controlador = new AbortController();
+    consultaEmCurso.current = controlador;
+
+    setTela('conselho');
+    setEntrada('');
+    setErro('');
+    setProcessando(true);
+    setConsulta({ pergunta, texto: '', pensando: true });
+
+    try {
+      await api.consultar({
+        pergunta,
+        mes,
+        sinal: controlador.signal,
+        aoAnalise: (a) => setConsulta((c) => (c && c.pergunta === pergunta
+          ? { ...c, veredito: a.veredito, titulo: a.titulo, analise: a.analise }
+          : c)),
+        aoTexto: (pedaco) => setConsulta((c) => (c && c.pergunta === pergunta
+          ? { ...c, texto: (c.texto || '') + pedaco }
+          : c)),
+      });
+      setConsulta((c) => (c && c.pergunta === pergunta ? { ...c, pensando: false } : c));
+      vibrar(10);
+    } catch (e) {
+      if (e.name === 'AbortError' || controlador.signal.aborted) return;
+      setConsulta((c) => (c && c.pergunta === pergunta
+        ? { ...c, pensando: false, erro: e.message || 'Não consegui responder agora.' }
+        : c));
+    } finally {
+      if (consultaEmCurso.current === controlador) setProcessando(false);
+    }
+  };
+
   const enviar = async () => {
+    // A barra é uma só, mas no consultor ela pergunta em vez de lançar.
+    if (tela === 'conselho') {
+      perguntar();
+      return;
+    }
+
     const mensagem = entrada.trim();
     if (!mensagem || processando) return;
     setProcessando(true);
@@ -277,7 +364,14 @@ export default function App() {
     return `${String(dia).padStart(2, '0')}/${data.split('-')[1]} ${hora}`;
   };
 
-  const mudarMes = (n) => setMes((m) => api.somaMes(m, n));
+  // Navegação de mês: muda o alvo e busca. A carga é explícita (e não um
+  // efeito que observa `mes`) para o boot não disparar duas requisições — a
+  // primeira resposta é justamente quem descobre qual mês é o atual.
+  const mudarMes = (n) => {
+    const alvo = api.somaMes(mes, n);
+    setMes(alvo);
+    carregar(alvo);
+  };
 
   // -------------------------------------------------------------------------
   // Compromissos
@@ -410,7 +504,10 @@ export default function App() {
           color: diasParaFechar != null && diasParaFechar <= 1 ? cor.atencao : 'rgba(237,243,233,.45)',
         }}
         >
-          {rotuloCiclo}
+          {/* Enquanto a tela mostra o retrato salvo, ela diz isso: número de
+              antes com cara de agora seria pior que esperar. Se a atualização
+              falhou, "atualizando…" seria mentira — aí assume que está velho. */}
+          {desatualizado ? (erro ? 'dados de antes' : 'atualizando…') : rotuloCiclo}
         </span>
       </header>
 
@@ -420,7 +517,14 @@ export default function App() {
             Ligando o painel…
           </div>
         ) : (
-          <>
+          // As telas fora da Home chegam por import() — o fallback é o mesmo
+          // texto da carga, e dura o tempo de um arquivo pequeno.
+          <Suspense fallback={(
+            <div style={{ padding: '40px 20px', fontFamily: MONO, fontSize: 11.5, opacity: 0.5 }}>
+              Abrindo…
+            </div>
+          )}
+          >
             {tela === 'home' && (
               <Home
                 saldo={saldo} gastos={gastos} gastoHoje={gastoHoje} sobraHoje={sobraHoje}
@@ -452,6 +556,14 @@ export default function App() {
               />
             )}
             {tela === 'projecao' && <Projecao projecao={projecao} aoVoltar={() => setTela('compromissos')} />}
+            {tela === 'conselho' && (
+              <Conselho
+                consulta={consulta}
+                corOlho={corOlho}
+                aoPerguntar={perguntar}
+                aoLimpar={() => { consultaEmCurso.current?.abort(); setConsulta(null); }}
+              />
+            )}
             {tela === 'config' && (
               <Ajustes
                 mes={mes} saldo={saldo} ciclo={ciclo} rendas={rendas}
@@ -463,7 +575,7 @@ export default function App() {
                 aoExportar={exportarCsv} aoRefazer={refazerOnboarding}
               />
             )}
-          </>
+          </Suspense>
         )}
         {/* Espaço para a barra fixa não cobrir o fim da lista. */}
         <div style={{ height: 136 }} />
@@ -521,16 +633,22 @@ export default function App() {
         />
       </div>
 
+      {/* O onboarding cobre a tela inteira e também chega por import(), então
+          precisa do próprio limite de Suspense — ele não está dentro do
+          <Suspense> das telas. O fallback é vazio de propósito: o painel atrás
+          já é uma tela completa, e um "carregando" por cima dele piscaria. */}
       {onboardando && (
-        <Onboarding
-          mes={mes}
-          ciclo={ciclo}
-          compromissos={compromissos}
-          aoDefinirRenda={async (v) => { await api.definirRenda(v, mes); await recarregar(); }}
-          aoAdicionarCompromisso={(tipo, dados) => salvarCompromisso(tipo, null, dados)}
-          aoRemoverCompromisso={excluirCompromisso}
-          aoConcluir={() => setOnboardando(false)}
-        />
+        <Suspense fallback={null}>
+          <Onboarding
+            mes={mes}
+            ciclo={ciclo}
+            compromissos={compromissos}
+            aoDefinirRenda={async (v) => { await api.definirRenda(v, mes); await recarregar(); }}
+            aoAdicionarCompromisso={(tipo, dados) => salvarCompromisso(tipo, null, dados)}
+            aoRemoverCompromisso={excluirCompromisso}
+            aoConcluir={() => setOnboardando(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

@@ -722,3 +722,202 @@ export async function definirFechamento(dia) {
   CICLO_PADRAO.dia_fechamento = dia;
   return { ...CICLO_PADRAO, notificar: avisoMock };
 }
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+// Uma requisição para tudo que a primeira tela precisa.
+//
+// Antes o boot era `/api/ciclo` e SÓ DEPOIS sete chamadas em paralelo: duas
+// rodadas de rede em série, porque nenhum número pode ser pedido antes de
+// saber qual ciclo está aberto (dia 29 já é o ciclo seguinte). No celular,
+// cada rodada custa um ida-e-volta completo — e a primeira ainda paga DNS e
+// TLS do domínio da API. Colapsar em `/api/boot` corta uma rodada inteira.
+
+const CHAVE_SNAPSHOT = 'minimau_boot';
+// Retrato mais velho que isto não é mostrado nem por um instante: é melhor a
+// tela de carregando do que um saldo da semana passada com cara de atual.
+const VALIDADE_SNAPSHOT_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Último boot bem-sucedido, para a tela abrir com número em vez de vazio.
+// localStorage pode estourar cota ou estar bloqueado (Safari privado): falhar
+// aqui não pode derrubar o app, só faz perder a abertura instantânea.
+export function lerSnapshot() {
+  try {
+    const bruto = localStorage.getItem(CHAVE_SNAPSHOT);
+    if (!bruto) return null;
+    const { em, mes, dados, fechamento } = JSON.parse(bruto);
+    if (!em || !dados) return null;
+    if (Date.now() - new Date(em).getTime() > VALIDADE_SNAPSHOT_MS) return null;
+    // O ciclo pode ter virado desde o último uso, e aí o retrato é de outro
+    // período: saldo do ciclo passado com cara de atual é o erro mais caro que
+    // esta tela pode cometer. O dia de fechamento vem gravado no próprio
+    // snapshot (o usuário pode tê-lo mudado), então a conta local bate com a
+    // do backend.
+    const cfg = { ...CICLO_PADRAO, dia_fechamento: fechamento || CICLO_PADRAO.dia_fechamento };
+    if (mes !== cicloLocal(hojeLocal(), cfg)) return null;
+    return { ...dados, snapshot: true, snapshot_em: em };
+  } catch {
+    return null;
+  }
+}
+
+function gravarSnapshot(mes, dados, fechamento) {
+  try {
+    localStorage.setItem(CHAVE_SNAPSHOT, JSON.stringify({
+      em: new Date().toISOString(), mes, dados, fechamento,
+    }));
+  } catch {
+    // Sem espaço ou sem permissão: segue sem snapshot.
+  }
+}
+
+export function limparSnapshot() {
+  try {
+    localStorage.removeItem(CHAVE_SNAPSHOT);
+  } catch {
+    // nada a fazer
+  }
+}
+
+// Tudo do ciclo em uma resposta. `mes` ausente = ciclo aberto, decidido pelo
+// backend (que é quem conhece o dia de fechamento e o fuso).
+export async function getBoot(mes) {
+  if (!USAR_MOCK) {
+    const d = await req(`/api/boot${mes ? `?mes=${mes}` : ''}`);
+    const pronto = {
+      ciclo: d.ciclo,
+      cicloAtual: d.ciclo.ciclo_atual,
+      mes: d.saldo.mes_referencia,
+      saldo: d.saldo,
+      gastos: (d.gastos || []).map(normalizaGasto),
+      painel: normalizaPainel(d.dashboard),
+      compromissos: normalizaCompromissos(d.compromissos),
+      projecao: normalizaProjecao(d.projecao),
+      rendas: { total: d.rendas.renda_total, definida: d.rendas.renda_definida, entradas: d.rendas.rendas || [] },
+    };
+    // Só o ciclo aberto vira snapshot: mês navegado à mão não é o que a
+    // próxima abertura do app deve mostrar.
+    if (pronto.mes === pronto.cicloAtual) {
+      gravarSnapshot(pronto.mes, pronto, d.ciclo.configuracao?.dia_fechamento);
+    }
+    return pronto;
+  }
+
+  // No mock não existe rodada de rede para economizar: o ganho é só no real.
+  const janela = await getCiclo(mes);
+  const alvo = mes || janela.ciclo_atual;
+  const [saldo, gastos, painel, comp, projecao, rendas] = await Promise.all([
+    getSaldo(alvo), getGastos(alvo), getPainel(alvo),
+    getCompromissos(alvo), getProjecao(6, alvo), getRendas(alvo),
+  ]);
+  return {
+    ciclo: janela,
+    cicloAtual: janela.ciclo_atual,
+    mes: alvo,
+    saldo,
+    gastos,
+    painel,
+    compromissos: comp,
+    projecao,
+    rendas,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Consultor financeiro
+// ---------------------------------------------------------------------------
+// "Quando vale a pena comprar X de Y?"
+//
+// A resposta chega em duas partes, e é de propósito: a análise (veredito,
+// folga, mês em que a compra cabe) é conta de banco e volta em milissegundos;
+// o texto é escrito pelo LLM local, que em CPU gera ~10 tokens/s. Mostrar a
+// decisão na hora e deixar a frase aparecer escrevendo é a diferença entre um
+// app que responde e um app que fica pensando dez segundos.
+//
+// `aoAnalise` recebe os números; `aoTexto` recebe cada pedaço de frase.
+export async function consultar({ pergunta, mes, aoAnalise, aoTexto, sinal }) {
+  if (USAR_MOCK) {
+    await espera(220);
+    const { valor } = leCompraMock(pergunta);
+    const analise = {
+      tipo: valor ? 'compra' : 'geral',
+      veredito: valor ? (valor <= 200 ? 'cabe_agora' : 'esperar') : 'contexto',
+      titulo: valor ? (valor <= 200 ? 'Cabe agora, à vista.' : 'Melhor esperar.') : null,
+      analise: { valor, a_vista: { cabe: valor <= 200, folga_util: 200 }, retrato: { folga_atual: 200, media_diaria: 25 } },
+    };
+    if (aoAnalise) aoAnalise(analise);
+    const frase = valor
+      ? `No modo demonstração a folga é fixa em R$ 200,00, então ${valor <= 200 ? 'cabe' : 'não cabe'}.`
+      : 'No modo demonstração não há números reais para analisar.';
+    for (const parte of frase.split(' ')) {
+      await espera(35);
+      if (aoTexto) aoTexto(`${parte} `);
+    }
+    return { ...analise, texto: frase };
+  }
+
+  const r = await fetch(`${BASE_URL}/api/consultor/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-API-Token': TOKEN },
+    body: JSON.stringify({ pergunta, ...(mes ? { mes } : {}) }),
+    signal: sinal,
+  }).catch((e) => {
+    throw Object.assign(new Error('Não consegui falar com o servidor.'), { status: 0, causa: e });
+  });
+
+  // Validação falha antes de o stream abrir, e volta como JSON normal.
+  if (!r.ok) {
+    const corpo = await r.json().catch(() => ({}));
+    throw Object.assign(new Error(corpo.erro || 'Falha ao consultar.'), { status: r.status });
+  }
+
+  const leitor = r.body.getReader();
+  const decodificador = new TextDecoder();
+  let buffer = '';
+  let analise = null;
+  let texto = '';
+
+  // SSE: eventos separados por linha em branco, cada um com `event:` e `data:`.
+  const processar = (bloco) => {
+    let evento = 'message';
+    const dados = [];
+    for (const linha of bloco.split('\n')) {
+      if (linha.startsWith('event:')) evento = linha.slice(6).trim();
+      else if (linha.startsWith('data:')) dados.push(linha.slice(5).trim());
+    }
+    if (!dados.length) return;
+    let d;
+    try { d = JSON.parse(dados.join('\n')); } catch { return; }
+
+    if (evento === 'analise') { analise = d; if (aoAnalise) aoAnalise(d); }
+    else if (evento === 'pedaco') { texto += d.texto; if (aoTexto) aoTexto(d.texto); }
+    else if (evento === 'fim') { texto = d.texto || texto; }
+    else if (evento === 'erro') { throw Object.assign(new Error(d.erro || 'Falha ao gerar o conselho.'), { status: 500 }); }
+  };
+
+  for (;;) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    buffer += decodificador.decode(value, { stream: true });
+    const blocos = buffer.split('\n\n');
+    buffer = blocos.pop() || '';
+    blocos.forEach(processar);
+  }
+  if (buffer.trim()) processar(buffer);
+
+  return { ...(analise || {}), texto };
+}
+
+// Leitura de valor da pergunta, só para o modo demonstração. No real quem lê é
+// o backend, que também decide o veredito.
+function leCompraMock(pergunta) {
+  const m = String(pergunta || '').match(/(\d{1,3}(?:\.\d{3})+(?:,\d{2})?|\d+(?:,\d{2})?)/);
+  return { valor: m ? leValorSimples(m[1]) : null };
+}
+
+function leValorSimples(bruto) {
+  const t = bruto.includes(',') ? bruto.replace(/\./g, '').replace(',', '.') : bruto.replace(/\.(?=\d{3}\b)/g, '');
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}

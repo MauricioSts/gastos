@@ -22,6 +22,11 @@ bruta, e a decomposição `Renda 1.700 − Travado 365 − Gasto 412` fica
 permanentemente visível abaixo dele. Quem tem 1.700 de renda e 365 travados em
 contas fixas e parcelas não tem 1.700 para gastar no dia 1º.
 
+O mesmo campo de texto também tira dúvida de compra, na aba Consultor: *"vale a
+pena comprar um fone de 300?"* é respondido com os números do próprio ciclo —
+veredito calculado no servidor, explicação escrita pelo LLM local. Ver
+[Consultor financeiro](#consultor-financeiro).
+
 ---
 
 ## Rodar local
@@ -73,6 +78,8 @@ sudo systemctl restart gastos-api
 src/
 ├── api/index.js              toda conversa com o servidor, mock incluído
 ├── App.jsx                   estado, navegação e orquestração das telas
+├── splash.js                 quando a logo que pisca sai de cena
+├── fontes.css                @font-face das fontes servidas pelo próprio app
 ├── componentes/
 │   ├── BarraEntrada.jsx      input + microfone + navegação (fixos na base)
 │   ├── CardConfirmacao.jsx   card de gasto ou entrada, com desfazer de 5s
@@ -85,11 +92,21 @@ src/
 │   ├── Logo.jsx              o rosto em viewBox quadrado: header e ícone PWA
 │   ├── Notificacao.jsx       aviso de fatura no formato de notificação do iOS
 │   └── telas/                Home, Painel, Historico, Compromissos,
-│                             Projecao, Ajustes, Onboarding
+│                             Projecao, Conselho, Ajustes, Onboarding
 ├── tema.js                   paleta, fontes, raios e rampa de categorias
 ├── hooks/                    placeholder rotativo, teclado iOS, vibração
 └── utils/formato.js          formatação e leitura de valores em reais
+
+public/
+├── sw.js                     service worker (cache da casca do app)
+├── fontes/                   woff2 das duas famílias, subsets latin
+├── icones/                   32 a 1024, incluindo maskable
+└── splash/                   splash estáticos do iOS, por resolução
 ```
+
+Só a Home vem no bundle principal. As outras telas chegam por `import()` quando
+a pessoa abre cada uma — no celular o que importa é o tempo até a **primeira**
+tela aparecer, e gráfico, histórico e ajustes não participam dele.
 
 Nenhum componente chama `fetch`. Trocar mock por backend real, ou mudar o
 formato de uma rota, se resolve inteiramente em `src/api/index.js`.
@@ -107,9 +124,108 @@ vive nas funções `normaliza*` de `src/api/index.js`:
 | `projecao[].mes_referencia` / `.comprometido_total` / `.sobra_projetada` | `mes` / `comprometido` / `sobra` |
 | `gastos[].data_gasto` + `.criado_em` | `data_gasto` com hora (`2026-08-14T13:12`) |
 
-O backend não tem rota de dashboard: o Painel do mês é derivado em
+No modo mock o backend não existe, então o Painel do mês é derivado em
 `getPainel(mes)`, na mesma camada, a partir dos gastos do ciclo e do ciclo
-anterior (só para a variação).
+anterior (só para a variação). Contra o backend real quem entrega isso pronto é
+`/api/dashboard`.
+
+## Abertura no celular
+
+O app abre em **uma** requisição de rede à API, e na segunda abertura abre sem
+nenhuma.
+
+Medido em Chromium com 4G simulado (9 Mbps, 150ms de latência por request),
+mesma API pública nos dois casos, até o primeiro número real na tela:
+
+| | Antes | Depois |
+|---|---|---|
+| Primeira abertura | 1132ms | 717ms |
+| Segunda abertura | 1132ms | **121ms** |
+| Requisições | 15 | 7 |
+| Chamadas de API | 8 | 1 |
+| Domínios envolvidos | 4 | 2 |
+
+O que estava custando:
+
+1. **Google Fonts bloqueando o primeiro paint.** Um `<link rel="stylesheet">`
+   para `fonts.googleapis.com` põe dois domínios de terceiro no caminho crítico
+   (o CSS vem de um, os arquivos de fonte de outro): dois DNS e dois TLS antes de
+   qualquer texto poder aparecer. As duas famílias agora são servidas pelo
+   próprio app, em `public/fontes/`, com `font-display: swap`, e só os subsets
+   `latin` e `latin-ext` — cirílico, tailandês e vietnamita eram 17 arquivos de
+   peso morto. As duas faces da primeira tela vão em `<link rel="preload">`.
+2. **Cascata de boot.** Nenhum número pode ser pedido antes de saber qual ciclo
+   está aberto (dia 29 já pertence ao seguinte), então o boot era `/api/ciclo` e
+   **só então** sete chamadas em paralelo: duas rodadas de rede em série. Hoje é
+   uma só, `/api/boot`, e a tela fica em "Ligando o painel…" por um RTT, não dois.
+3. **Nada em cache entre aberturas.** Sem service worker, cada abertura baixava
+   HTML, bundle, CSS e fontes de novo. O `public/sw.js` agora guarda a casca do
+   app (cache primeiro para `/assets`, `/fontes`, `/icones`; rede primeiro com
+   cache de reserva para o HTML) e **nunca** toca em `/api/*` — saldo velho
+   servido de cache como se fosse o de agora seria o erro mais caro deste app.
+4. **Tela vazia enquanto o primeiro número não chega.** O último boot
+   bem-sucedido fica no `localStorage` e pinta a tela na hora, com o cabeçalho
+   dizendo `atualizando…` (ou `dados de antes`, se a atualização falhar). O
+   retrato é descartado se tiver mais de 7 dias ou se o ciclo virou desde que
+   foi salvo — para isso o dia de fechamento vai gravado junto, já que a pessoa
+   pode tê-lo mudado.
+
+Efeito colateral útil do item 3 com o item 4: o app abre offline, mostrando os
+números da última vez, marcados como antigos.
+
+## A logo que pisca antes de abrir
+
+O splash do iOS (`apple-touch-startup-image`) é um PNG estático — o sistema o
+desenha antes de existir navegador, então não há como animá-lo. A animação vive
+no `#splash` do `index.html`: o mesmo rosto, em SVG inline, no mesmo fundo e na
+mesma posição do PNG, agora piscando. A troca entre os dois é invisível.
+
+- **Inline, e não `<img>`**: o splash tem que aparecer sem esperar request
+  nenhum — é justamente o que estamos tentando cortar. O CSS dele também é
+  inline, pelo mesmo motivo.
+- **Duas piscadas em ~600ms.** Pálpebra que fecha em intervalo constante parece
+  máquina quebrada, não bicho olhando. Ambas acontecem no começo do ciclo de
+  1,1s porque com service worker o app fica pronto em ~150ms: piscada que
+  começasse depois disso nunca seria vista.
+- **`MINIMO_MS = 700`** em `src/splash.js`: o splash não sai antes disso, mesmo
+  com o app pronto. É o custo declarado de ter a logo piscando antes de abrir, e
+  está calibrado para as duas piscadas terminarem pouco antes.
+- Sai quando existe **conteúdo**, não quando o JS terminou de carregar. Erro no
+  boot também encerra o splash — ficar na logo piscando para sempre esconderia a
+  mensagem de erro.
+- `prefers-reduced-motion` recebe a logo parada.
+
+## Consultor financeiro
+
+A aba **Consultor** responde dúvidas de compra com os números da pessoa:
+"vale a pena comprar um fone de 300?", "cabe um monitor de 1200 em 6x?",
+"quanto posso gastar hoje?".
+
+A mesma barra de entrada faz as duas coisas — na aba do consultor ela pergunta
+em vez de lançar, e o placeholder muda para avisar disso (sem ele a pessoa
+digitaria "almoço 24" esperando registrar e receberia um conselho).
+
+A tela é montada em duas ondas, e essa é a decisão de projeto central:
+
+| Onda | O que é | Quando chega |
+|---|---|---|
+| Veredito + a conta | Aritmética no backend | ~200ms |
+| A explicação | Texto do LLM local, em streaming | primeira frase em ~3 a 9s |
+
+O cartão de veredito (com cor e sinal próprios por resultado) aparece
+praticamente na hora e o texto vai aparecendo escrito abaixo. Esperar o texto
+para mostrar tudo junto transformaria uma resposta instantânea em dez segundos
+de tela parada.
+
+Nada é recalculado no cliente: os valores exibidos vêm do mesmo cálculo que
+gerou o veredito, para a tela não conseguir divergir dele. E o modelo local não
+decide nem calcula — quem faz isso é o `consultorService` do backend, que também
+descarta qualquer frase que cite número inventado. Detalhes no README da API.
+
+A conta central é a **folga**, não o disponível: `disponivel` menos o que o
+próprio ritmo de gasto ainda vai consumir até a fatura fechar. Quem tem R$ 400
+disponíveis e gasta R$ 25 por dia com 17 dias de ciclo pela frente não tem
+R$ 400 para uma compra.
 
 ## Direção visual
 
@@ -175,7 +291,8 @@ Travado tem o mesmo formulário para criar, editar e excluir.
 - Teclado: `visualViewport` mede quanto da tela foi coberto e a barra de
   entrada sobe junto (`--teclado` em `useTecladoIOS`).
 - Manifest, ícones de 32 a 1024 (incluindo `maskable`) e splash screens para as
-  cinco resoluções de iPhone mais comuns, todos gerados do SVG da logo.
+  cinco resoluções de iPhone mais comuns, todos gerados do SVG da logo. O splash
+  estático emenda no `#splash` animado do HTML — mesma imagem, agora piscando.
 - Vibração nos dois momentos de confirmação: `18ms` ao registrar um gasto,
   `[12,40,12]` ao sugerir um compromisso recorrente.
 - Ditado por Web Speech API (`pt-BR`). Sem suporte, avisa na faixa discreta —

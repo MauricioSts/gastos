@@ -56,17 +56,33 @@ const RE_PARCELA = /(\d{1,2})\s*(?:x|vezes)(?:\s*(?:de|por)?\s*(?:r\$\s*)?([\d.,
 const RE_MIL = /(\d+(?:[.,]\d+)?)\s*mil\b/i;
 const RE_NUMERO = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?|\d+(?:,\d{2})?|\d+(?:\.\d{2})?)/gi;
 
-// Piso de dinheiro livre por mes dito na propria pergunta: "quero ter pelo menos
-// 700 reais no mes para gastar livre", "deixando 500 livres", "sem mexer nos 300
-// do mes". Sem isto, a restricao era simplesmente ignorada -- a resposta chegava
-// com um numero de parcelas que consumia justamente o dinheiro que a pessoa
-// pediu para preservar.
-const RE_RESERVA = new RegExp([
-  '(?:pelo menos|no m[ií]nimo|m[ií]nimo de|deixa(?:r|ndo)|sobra(?:r|ndo)',
-  '|guarda(?:r|ndo)|manter|mantendo|reserva(?:r|ndo)?|sem mexer (?:n)?(?:os|as|o|a))',
-  '\\s*(?:de\\s*)?(?:r\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})+(?:,\\d{2})?|\\d+(?:[.,]\\d{1,2})?)',
-  '\\s*(?:mil\\b)?',
-].join(''), 'i');
+// Piso de dinheiro livre por mes dito na propria pergunta. Duas ordens de frase,
+// porque as duas aparecem:
+//
+//   "quero ter pelo menos 700 reais no mes para gastar livre"  (gatilho, numero)
+//   "e sobrar para eu gastar no mes livre 600 reais"           (gatilho, texto, numero)
+//   "600 reais livres por mes"                                 (numero, contexto)
+//
+// A segunda forma existe porque foi a que o usuario escreveu e a primeira versao
+// ignorou: o numero estava a 27 caracteres do gatilho "sobrar", e a resposta saiu
+// com uma parcela que comia exatamente o dinheiro que ele pediu para preservar.
+// O vao aceita texto, nunca outro numero -- assim "de 1600 reais parcelado e
+// sobrar ... 600" nao confunde preco com piso.
+const GATILHO_RESERVA = '(?:pelo menos|no m[ií]nimo|m[ií]nimo de|deixa(?:r|ndo)'
+  + '|sobra(?:r|ndo)|guarda(?:r|ndo)|manter|mantendo|reserva(?:r|ndo)?|sem mexer (?:n)?(?:os|as|o|a))';
+const VALOR_RESERVA = '(\\d{1,3}(?:\\.\\d{3})+(?:,\\d{2})?|\\d+(?:[.,]\\d{1,2})?)';
+
+// Gatilho antes do numero, com ate 40 caracteres sem digito no meio.
+const RE_RESERVA = new RegExp(
+  `${GATILHO_RESERVA}\\s*(?:de\\s*)?(?:r\\$\\s*)?(?:[^\\d.,]{0,40}?)${VALOR_RESERVA}\\s*(?:mil\\b)?`,
+  'i',
+);
+
+// Numero antes da palavra que o qualifica: "600 reais livres por mes".
+const RE_RESERVA_INVERSA = new RegExp(
+  `(?:r\\$\\s*)?${VALOR_RESERVA}\\s*(?:mil\\b)?\\s*(?:reais\\s*)?(?:livres?|liberados?)\\b`,
+  'i',
+);
 
 // Só conta como piso se a frase disser que o dinheiro é para gastar/ficar livre,
 // ou for por mês. "pelo menos 1600" falando do preço não é piso.
@@ -77,9 +93,12 @@ const RE_CONTEXTO_RESERVA = /\b(livre|livres|gastar|sobrar|sobrando|por m[eê]s|
 // do valor da compra ("pelo menos 2000 livres" num fone de 1600 faria o preço
 // virar 2000, porque o preço é o MAIOR número da frase).
 function lerReserva(texto) {
-  const m = texto.match(RE_RESERVA);
+  const m = texto.match(RE_RESERVA) || texto.match(RE_RESERVA_INVERSA);
   if (!m) return { reserva: null, texto };
 
+  // O contexto pode estar no proprio trecho casado, antes dele ou logo depois:
+  // "sobrar ... livre 600 reais" traz a palavra dentro do vao; "600 livres por
+  // mes" traz no fim; "pelo menos 700 reais no mes para gastar livre" traz depois.
   const depois = texto.slice(m.index + m[0].length, m.index + m[0].length + 40);
   if (!RE_CONTEXTO_RESERVA.test(m[0]) && !RE_CONTEXTO_RESERVA.test(depois)) {
     return { reserva: null, texto };
@@ -89,9 +108,13 @@ function lerReserva(texto) {
   if (n === null || n <= 0) return { reserva: null, texto };
   if (/mil\b/i.test(m[0])) n = emCentavos(n * 1000);
 
+  // Tira do texto SO o numero do piso, nao o vao inteiro: o resto da frase ainda
+  // pode carregar o preco ou o numero de parcelas.
+  const alvo = m[0].lastIndexOf(m[1]);
+  const inicio = m.index + alvo;
   return {
     reserva: n,
-    texto: `${texto.slice(0, m.index)} ${texto.slice(m.index + m[0].length)}`,
+    texto: `${texto.slice(0, inicio)} ${texto.slice(inicio + m[1].length)}`,
   };
 }
 

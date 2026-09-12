@@ -813,9 +813,20 @@ Campos aceitos:
 | `parcelas` | não | Número de parcelas a testar; idem |
 | `reserva` | não | Piso de gasto livre por mês; idem |
 
-**Piso de gasto livre.** *"quero ter pelo menos 700 reais no mês para gastar
-livre"*, *"deixando 500 livres por mês"*, *"mantendo 1 mil livre"* — o número é
-lido da frase e passa a ser a base da conta: a folga de cada mês vira *renda −
+**Piso de gasto livre.** Três ordens de frase, porque as três aparecem:
+
+| Forma | Exemplo |
+|---|---|
+| gatilho, número | *"quero ter **pelo menos 700** reais no mês para gastar livre"* |
+| gatilho, texto, número | *"e **sobrar** para eu gastar no mês livre **600** reais"* |
+| número, qualificador | *"quero **600 reais livres** por mês"* |
+
+A segunda forma existe porque foi a que o usuário escreveu e a primeira versão
+ignorou em silêncio — o número estava a 27 caracteres do gatilho. O vão entre
+gatilho e número aceita texto mas **nunca outro número**, senão *"de 1600 reais
+parcelado e sobrar … 600"* confundiria preço com piso.
+
+O número é lido da frase e passa a ser a base da conta: a folga de cada mês vira *renda −
 comprometido − piso*, e a margem de segurança de 15% sai, porque o piso já é a
 folga que a pessoa pediu. No ciclo aberto o piso é proporcional ao que falta dele
 (no dia 12 de um ciclo de 31, exigir os 700 inteiros do que resta seria errado).

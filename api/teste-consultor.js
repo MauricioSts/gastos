@@ -220,6 +220,17 @@ conferir('piso nao inventa numero quando nao ha piso',
   lerCompra('posso comprar um fone de 300 agora?').reserva, null);
 conferir('"pelo menos" falando do preco nao e piso',
   lerCompra('pelo menos 1600 reais eu preciso pra esse fone').reserva, null);
+// Ordem das palavras: o numero pode vir longe do gatilho, ou antes dele. As duas
+// formas abaixo sao transcricoes de perguntas reais do usuario.
+conferir('piso com o numero longe do gatilho ("sobrar para eu gastar no mes livre 600")',
+  lerCompra('quando eu consigo comprar um fone de ouvido de 1600 reais parcelado e sobrar para eu gastar no mes livre 600 reais'),
+  { valor: 1600, parcelas: null, valor_parcela: null, reserva: 600 });
+conferir('piso com o numero antes da palavra ("600 reais livres por mes")',
+  lerCompra('um fone de 1600 mas quero 600 reais livres por mes'),
+  { valor: 1600, parcelas: null, valor_parcela: null, reserva: 600 });
+conferir('o vao do piso nao atravessa outro numero',
+  lerCompra('quero deixar a compra de 1600 reais para depois').reserva, null);
+
 conferir('piso nao atropela a leitura de parcelas',
   lerCompra('uma tv de 2000 em 12x deixando 400 livres'),
   { valor: 2000, parcelas: 12, valor_parcela: null, reserva: 400 });

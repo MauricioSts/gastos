@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import Mascote from '../Mascote';
 import LinhaLancamento from '../LinhaLancamento';
 import { cor, MONO, cardAlto, rotulo, meta } from '../../tema';
@@ -16,10 +17,39 @@ function blocosDoMes(saldo) {
   });
 }
 
+// Falas do toque no Minimau. Brincadeira, não informação: nenhuma cita número
+// do mês, e a fala do estado volta sozinha em 2,6s.
+const FALAS_DO_MORTAL = [
+  'Mortal carpado! Nota 10 dos jurados, zero reais gastos.',
+  'Sacudi o cofrinho: tudo no lugar por aqui.',
+  'Esse pulo foi de graça. Aproveita, que o iFood não é.',
+  'Treinando para o dia em que a fatura fechar no verde.',
+  'Cada toque meu é uma moeda que você não gastou.',
+];
+const FALA_TONTO = 'Para, para! Assim eu perco a conta dos centavos…';
+
 export default function Home({
   saldo, gastos, gastoHoje, sobraHoje, estado, fala, corOlho,
   quando, rotuloCategoria, corBarra, aoEditar, aoExcluir,
 }) {
+  const [reacao, setReacao] = useState(null);
+  const proximaFala = useRef(0);
+
+  useEffect(() => {
+    if (!reacao) return undefined;
+    const t = setTimeout(() => setReacao(null), 2600);
+    return () => clearTimeout(t);
+  }, [reacao]);
+
+  const reagir = (tipo) => {
+    if (tipo === 'tonto') {
+      setReacao({ estado: 'tonto', fala: FALA_TONTO });
+      return;
+    }
+    setReacao({ estado: 'empolgado', fala: FALAS_DO_MORTAL[proximaFala.current % FALAS_DO_MORTAL.length] });
+    proximaFala.current += 1;
+  };
+
   const disponivel = saldo ? saldo.disponivel : null;
   const [inteiro, centavos] = fmt(disponivel).split(',');
   const estourou = sobraHoje < 0;
@@ -42,12 +72,17 @@ export default function Home({
           background: 'radial-gradient(closest-side,rgba(155,255,59,.16),transparent)',
         }}
         />
-        <Mascote corOlho={corOlho} largura={104} style={{ flex: 'none', margin: '-10px -6px -14px -6px', pointerEvents: 'none' }} />
+        <Mascote corOlho={corOlho} largura={104} interativo aoTocar={reagir} style={{ flex: 'none', margin: '-10px -6px -14px -6px' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '.22em', textTransform: 'uppercase', color: cor.fosforo, opacity: 0.8 }}>
-            {estado}
+            {reacao ? reacao.estado : estado}
           </div>
-          <div style={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.35, marginTop: 6, textWrap: 'pretty' }}>{fala}</div>
+          <div
+            key={reacao ? reacao.fala : 'estado'}
+            style={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.35, marginTop: 6, textWrap: 'pretty', animation: 'subirValor .35s cubic-bezier(.2,.9,.25,1)' }}
+          >
+            {reacao ? reacao.fala : fala}
+          </div>
         </div>
       </div>
 

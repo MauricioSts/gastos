@@ -219,7 +219,7 @@ export default function Conselho({ consulta, corOlho, aoPerguntar, aoLimpar }) {
           padding: '16px 16px 16px 12px', display: 'flex', gap: 12, alignItems: 'center', overflow: 'hidden',
         }}
         >
-          <Mascote corOlho={corOlho} largura={96} style={{ flex: 'none', margin: '-10px -6px -14px -6px', pointerEvents: 'none' }} />
+          <Mascote corOlho={corOlho} largura={96} interativo style={{ flex: 'none', margin: '-10px -6px -14px -6px' }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={rotulo({ color: cor.fosforo, opacity: 0.8 })}>Consultor</div>
             <div style={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.35, marginTop: 6, textWrap: 'pretty' }}>

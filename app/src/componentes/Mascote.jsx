@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 // O Minimau. SVG vetorial animado por CSS — nunca vídeo, GIF ou Lottie.
 //
@@ -9,16 +9,87 @@ import { useId } from 'react';
 //
 // Os `id` do SVG são gerados por instância: o mesmo mascote aparece na Home e
 // no Onboarding ao mesmo tempo, e `url(#...)` duplicado embaralha os clipes.
-export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
+//
+// `interativo` liga o toque: um toque dá um mortal (agacha, pula girando 360°,
+// aterrissa amassando) com o olho arregalando, as engrenagens em overclock e
+// moedas saindo da fenda do peito — o cofrinho sacudido. Quatro toques em
+// menos de 1,5s deixam o Minimau tonto: balança, olho em espiral, estrelinhas.
+// O pulo é baixo e encolhe no ar de propósito: os cards que o contêm cortam o
+// que passa da borda. `aoTocar(tipo)` avisa quem quiser trocar a fala.
+
+const DURACAO = { mortal: 1650, tonto: 1900 };
+
+// Trajetória de cada moeda a partir da fenda: [meio x, meio y, fim x, fim y].
+// Pendem para a direita, onde o card tem espaço; à esquerda a borda corta.
+const MOEDAS = [
+  [60, -52, 118, 14],
+  [96, -30, 172, 44],
+  [26, -64, 64, -4],
+  [-34, -44, -66, 8],
+  [120, -8, 204, 62],
+];
+
+const ESPIRAL = 'M140 73 a3 3 0 0 1 3 3 a6 6 0 0 1 -6 6 a9 9 0 0 1 -9 -9 a12 12 0 0 1 12 -12 a15 15 0 0 1 15 15 a18 18 0 0 1 -18 18 a21 21 0 0 1 -21 -21 a24 24 0 0 1 24 -24';
+const ESTRELA = 'M0,-7 L2,-2 L7,0 L2,2 L0,7 L-2,2 L-7,0 L-2,-2 Z';
+
+export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style, interativo = false, aoTocar }) {
   const uid = useId().replace(/:/g, '');
   const id = (nome) => `${nome}${uid}`;
+
+  const [acao, setAcao] = useState(null); // 'mortal' | 'tonto' | null
+  const toques = useRef([]);
+  const proxima = useRef(null);
+  const relogio = useRef(null);
+  useEffect(() => () => clearTimeout(relogio.current), []);
+
+  const mortal = acao === 'mortal';
+  const tonto = acao === 'tonto';
+
+  const executar = (tipo) => {
+    setAcao(tipo);
+    if (aoTocar) aoTocar(tipo);
+    relogio.current = setTimeout(() => {
+      const seguinte = proxima.current;
+      proxima.current = null;
+      if (seguinte) executar(seguinte);
+      else setAcao(null);
+    }, DURACAO[tipo]);
+  };
+
+  // Toque no meio de uma acao nao reinicia nada (o salto cortado no ar fica
+  // feio); so conta para a tontura, que entra quando o mortal terminar.
+  const tocar = () => {
+    const agora = Date.now();
+    toques.current = [...toques.current.filter((t) => agora - t < 1500), agora];
+    const tonteou = toques.current.length >= 4;
+    if (tonteou) toques.current = [];
+    if (acao) {
+      if (tonteou && !tonto) proxima.current = 'tonto';
+      return;
+    }
+    executar(tonteou ? 'tonto' : 'mortal');
+  };
+
+  const toque = interativo
+    ? {
+      role: 'button',
+      tabIndex: 0,
+      'aria-label': 'Minimau — toque para ele reagir',
+      onClick: tocar,
+      onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tocar(); } },
+    }
+    : { 'aria-hidden': 'true' };
 
   return (
     <svg
       viewBox="0 0 280 306"
       width="100%"
-      aria-hidden="true"
-      style={{ display: 'block', width: largura, overflow: 'visible', ...style }}
+      {...toque}
+      style={{
+        display: 'block', width: largura, overflow: 'visible', outline: 'none',
+        ...(interativo ? { cursor: 'pointer', touchAction: 'manipulation', WebkitUserSelect: 'none', userSelect: 'none' } : {}),
+        ...style,
+      }}
     >
       <defs>
         <clipPath id={id('esfera')}><circle cx="140" cy="92" r="80" /></clipPath>
@@ -55,9 +126,22 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
       {/* A sombra respira junto com a flutuação. */}
       <ellipse
         cx="140" cy="294" rx="52" ry="7" fill="#9BFF3B" opacity=".14"
-        style={{ transformOrigin: '140px 294px', animation: 'mmSombra 4.2s ease-in-out infinite' }}
+        style={{
+          transformOrigin: '140px 294px',
+          animation: mortal ? 'mmSombraPulo .95s cubic-bezier(.3,.7,.4,1)' : 'mmSombra 4.2s ease-in-out infinite',
+        }}
       />
 
+      {/* Corpo inteiro: o mortal e a tontura moram num grupo por fora da
+          flutuação, porque duas animações de transform no mesmo elemento
+          brigam e só a última vale. */}
+      <g style={{
+        transformOrigin: tonto ? '140px 290px' : '140px 160px',
+        animation: mortal
+          ? 'mmMortal .95s cubic-bezier(.3,.7,.4,1)'
+          : tonto ? 'mmTonto 1.8s ease-in-out' : 'none',
+      }}
+      >
       <g style={{ animation: 'mmFlutuar 4.2s ease-in-out infinite' }}>
         {/* pernas */}
         <g stroke="#080C0E" strokeWidth="1.8">
@@ -104,7 +188,7 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
         <g>
           <path d="M100 176 h80 a14 14 0 0 1 14 14 v30 a18 18 0 0 1 -18 18 H104 a18 18 0 0 1 -18 -18 v-30 a14 14 0 0 1 14 -14 z" fill={`url(#${id('placa')})`} stroke="#080C0E" strokeWidth="1.8" />
           <path d="M114 178 h52 a11 11 0 0 1 11 11 v25 a16 16 0 0 1 -16 16 H119 a16 16 0 0 1 -16 -16 v-25 a11 11 0 0 1 11 -11 z" fill={`url(#${id('metal')})`} stroke="#080C0E" strokeWidth="1.6" />
-          <path d="M121 224 L121 192 L140 208 L159 192 L159 224" fill="none" stroke="#7CFF2E" strokeWidth="8.5" strokeLinejoin="round" strokeLinecap="round" style={{ animation: 'mmBrilhoM 2.8s ease-in-out infinite' }} />
+          <path d="M121 224 L121 192 L140 208 L159 192 L159 224" fill="none" stroke="#7CFF2E" strokeWidth="8.5" strokeLinejoin="round" strokeLinecap="round" style={{ animation: mortal ? 'mmBrilhoM .22s ease-in-out infinite' : 'mmBrilhoM 2.8s ease-in-out infinite' }} />
           <path d="M121 224 L121 192 L140 208 L159 192 L159 224" fill="none" stroke="#0B1A05" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" opacity=".45" />
           <circle cx="96" cy="200" r="8" fill="#0A0F11" stroke="#9BFF3B" strokeWidth="1.2" strokeOpacity=".45" />
           <circle cx="184" cy="200" r="8" fill="#0A0F11" stroke="#9BFF3B" strokeWidth="1.2" strokeOpacity=".45" />
@@ -131,7 +215,7 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
             <path d="M140 12 v160" stroke="#080C0E" strokeWidth="1.3" opacity=".45" />
 
             {/* trilhas de circuito */}
-            <g fill="none" stroke="#7CFF2E" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'mmPulso 3.2s ease-in-out infinite' }}>
+            <g fill="none" stroke="#7CFF2E" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" style={{ animation: mortal ? 'mmPulso .18s steps(2) infinite' : 'mmPulso 3.2s ease-in-out infinite' }}>
               <path d="M140 20 v16 M140 28 h-18 v-14 M140 28 h18 v-14" />
               <path d="M108 46 h-16 l-9 9 v18" />
               <path d="M172 46 h16 l9 9 v18" />
@@ -156,11 +240,11 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
             </g>
 
             {/* engrenagens */}
-            <g style={{ transformOrigin: '88px 142px', animation: 'mmEngrenagem 9s linear infinite' }}>
+            <g style={{ transformOrigin: '88px 142px', animation: mortal ? 'mmEngrenagem .5s linear infinite' : 'mmEngrenagem 9s linear infinite' }}>
               <circle cx="88" cy="142" r="16" fill="#0A0F11" stroke="#7CFF2E" strokeWidth="7.5" strokeDasharray="5 6.5" opacity=".85" />
               <circle cx="88" cy="142" r="6.5" fill="#7CFF2E" opacity=".9" />
             </g>
-            <g style={{ transformOrigin: '192px 142px', animation: 'mmEngrenagem 9s linear infinite reverse' }}>
+            <g style={{ transformOrigin: '192px 142px', animation: mortal ? 'mmEngrenagem .5s linear infinite reverse' : 'mmEngrenagem 9s linear infinite reverse' }}>
               <circle cx="192" cy="142" r="16" fill="#0A0F11" stroke="#7CFF2E" strokeWidth="7.5" strokeDasharray="5 6.5" opacity=".85" />
               <circle cx="192" cy="142" r="6.5" fill="#7CFF2E" opacity=".9" />
             </g>
@@ -169,12 +253,12 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
             <g>
               <circle cx="140" cy="76" r="48" fill="#1E2A2C" stroke="#080C0E" strokeWidth="2.2" />
               <circle cx="140" cy="76" r="48" fill="none" stroke="#EDF3E9" strokeWidth="2" strokeOpacity=".3" />
-              <g style={{ transformOrigin: '140px 76px', animation: 'mmLenteGira 15s linear infinite' }}>
+              <g style={{ transformOrigin: '140px 76px', animation: mortal || tonto ? 'mmLenteGira .7s linear infinite' : 'mmLenteGira 15s linear infinite' }}>
                 <circle cx="140" cy="76" r="43" fill="none" stroke="#0A0F11" strokeWidth="5.5" strokeDasharray="10 8" />
               </g>
               <circle cx="140" cy="76" r="37" fill="#070C0D" />
               <g clipPath={`url(#${id('lente')})`}>
-                <g style={{ transformOrigin: '140px 76px', animation: 'mmIris 3.6s ease-in-out infinite' }}>
+                <g style={{ transformOrigin: '140px 76px', animation: mortal ? 'mmSusto .95s ease-out' : 'mmIris 3.6s ease-in-out infinite' }}>
                   <circle cx="140" cy="76" r="31" fill={`url(#${id('iris')})`} />
                   <circle cx="140" cy="76" r="24" fill="none" stroke="#04120A" strokeWidth="2" strokeOpacity=".5" />
                   <circle cx="140" cy="76" r="16" fill="none" stroke="#04120A" strokeWidth="2" strokeOpacity=".5" />
@@ -182,6 +266,12 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
                   <circle cx="140" cy="76" r="8.5" fill={corOlho} opacity=".8" />
                   <circle cx="140" cy="76" r="3" fill="#F4FFE6" opacity=".9" />
                 </g>
+                {tonto && (
+                  <g style={{ transformOrigin: '140px 76px', animation: 'mmEspiral 1.8s linear both' }}>
+                    <circle cx="140" cy="76" r="32" fill="#070C0D" />
+                    <path d={ESPIRAL} fill="none" stroke="#9BFF3B" strokeWidth="3.2" strokeLinecap="round" />
+                  </g>
+                )}
                 <rect x="96" y="68" width="88" height="3" fill="#D6FFA8" opacity=".4" style={{ animation: 'mmVarredura 4.6s ease-in-out infinite' }} />
                 <path d="M118 52 a30 30 0 0 1 24 -10 a34 34 0 0 0 -29 19 z" fill="#FFFFFF" opacity=".45" />
                 <ellipse cx="157" cy="99" rx="11" ry="4.5" fill="#FFFFFF" opacity=".13" />
@@ -232,6 +322,33 @@ export default function Mascote({ corOlho = '#C9FF8F', largura = 104, style }) {
           </g>
         </g>
       </g>
+      </g>
+
+      {/* Moedas saindo da fenda do peito, depois da aterrissagem. */}
+      {mortal && MOEDAS.map(([mx, my, fx, fy], i) => (
+        <g key={i} transform="translate(140 234)">
+          <g style={{
+            '--mx': `${mx}px`, '--my': `${my}px`, '--fx': `${fx}px`, '--fy': `${fy}px`,
+            animation: `mmMoeda .9s cubic-bezier(.2,.7,.3,1) ${0.62 + i * 0.05}s both`,
+          }}
+          >
+            <circle r="10" fill="#9BFF3B" stroke="#2F5C12" strokeWidth="2" />
+            <text y="4.6" textAnchor="middle" fontSize="13" fontWeight="700" fill="#05080A" fontFamily="'IBM Plex Mono', monospace">$</text>
+          </g>
+        </g>
+      ))}
+
+      {/* Estrelinhas da tontura: animateMotion anda na elipse sem achatar a
+          estrela, o que um scale no grupo faria. */}
+      {tonto && (
+        <g transform="translate(140 30)">
+          {['M-70,0 a70,16 0 1,1 140,0 a70,16 0 1,1 -140,0', 'M70,0 a70,16 0 1,1 -140,0 a70,16 0 1,1 140,0'].map((trilha) => (
+            <path key={trilha} d={ESTRELA} fill="#C9FF8F">
+              <animateMotion dur=".9s" repeatCount="indefinite" path={trilha} />
+            </path>
+          ))}
+        </g>
+      )}
     </svg>
   );
 }

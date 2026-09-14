@@ -921,3 +921,247 @@ function leValorSimples(bruto) {
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 }
+
+// ---------------------------------------------------------------------------
+// Caixinhas
+// ---------------------------------------------------------------------------
+// Divisão LÓGICA da sobra do ciclo entre objetivos. O dinheiro físico fica
+// todo numa Caixinha Turbo do Nubank; as caixas do app só dizem quanto dele é
+// de cada objetivo. Regra, meta da reserva e teto são do backend
+// (`src/services/caixinhasService.js`); o mock espelha a mesma regra só para o
+// modo de demonstração.
+
+// Reparte `total` centavos na proporção dos pesos sem perder nem criar
+// centavo (método do maior resto). A tela usa para transformar percentual
+// editado em valor exato — é o valor, e não o percentual, que vai para o
+// backend: 0,01% de 1.500 são 15 centavos.
+export function repartirCentavos(total, pesos) {
+  const soma = pesos.reduce((a, p) => a + p, 0);
+  if (total <= 0 || soma <= 0) return pesos.map(() => 0);
+  const brutos = pesos.map((p) => (total * p) / soma);
+  const partes = brutos.map(Math.floor);
+  let resto = total - partes.reduce((a, p) => a + p, 0);
+  const ordem = brutos.map((b, i) => [b - Math.floor(b), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  for (let k = 0; resto > 0; k += 1, resto -= 1) partes[ordem[k % ordem.length][1]] += 1;
+  return partes;
+}
+
+const caixasMock = {
+  multiplicador: 2,
+  despesaMedia: 1450,
+  objetivos: [
+    { id: 1, nome: 'Reserva de emergência', e_reserva: true, saldo_atual: 1200, valor_meta: null, peso: null },
+    { id: 2, nome: 'Viagem', e_reserva: false, saldo_atual: 800, valor_meta: 3000, peso: null },
+    { id: 3, nome: 'Curso de inglês', e_reserva: false, saldo_atual: 150, valor_meta: null, peso: null },
+  ],
+  alocacoes: [],
+  sobraFechada: 420,
+  proximoId: 4,
+};
+
+const LIMITE_TURBO_MOCK = { limite: 5000, alerta: 0.8, cdi: 115, excedente: 100 };
+
+function objetivosMock() {
+  const metaReserva = caixasMock.despesaMedia * caixasMock.multiplicador;
+  return caixasMock.objetivos.map((o) => ({ ...o, meta: o.e_reserva ? metaReserva : o.valor_meta }));
+}
+
+const faltaMock = (o) => (o.meta == null ? Infinity : Math.max(0, Math.round((o.meta - o.saldo_atual) * 100)));
+
+// Espelha `dividir` do backend. Só roda no mock.
+function dividirMock(valor) {
+  const objetivos = objetivosMock();
+  const total = Math.round(valor * 100);
+  const reserva = objetivos.find((o) => o.e_reserva);
+  const abertos = objetivos.filter((o) => !o.e_reserva && faltaMock(o) > 0);
+  const centavos = new Map(objetivos.map((o) => [o.id, 0]));
+  let regra = 'so_reserva';
+  let paraReserva = total;
+  if (abertos.length && faltaMock(reserva) > 0) {
+    regra = 'reserva_abaixo_da_meta';
+    paraReserva = Math.min(Math.round(total * 0.75), Math.max(faltaMock(reserva), Math.round(total * 0.2)));
+  } else if (abertos.length) {
+    regra = 'reserva_na_meta';
+    paraReserva = Math.round(total * 0.2);
+  }
+  let restante = total - paraReserva;
+  let rodada = abertos;
+  while (restante > 0 && rodada.length) {
+    const definidos = rodada.map((o) => o.peso).filter((p) => p != null);
+    const media = definidos.length ? definidos.reduce((a, p) => a + p, 0) / definidos.length : 1;
+    const pesos = rodada.map((o) => (o.peso == null ? media : o.peso));
+    const partes = repartirCentavos(restante, pesos.some((p) => p > 0) ? pesos : pesos.map(() => 1));
+    const cheios = rodada.filter((o, i) => partes[i] >= faltaMock(o));
+    if (!cheios.length) {
+      rodada.forEach((o, i) => centavos.set(o.id, partes[i]));
+      restante = 0;
+      break;
+    }
+    cheios.forEach((o) => { centavos.set(o.id, faltaMock(o)); restante -= faltaMock(o); });
+    rodada = rodada.filter((o) => !cheios.includes(o));
+  }
+  centavos.set(reserva.id, paraReserva + restante);
+  const lista = objetivos.map((o) => centavos.get(o.id));
+  const pcts = lista.map((c) => Math.round((c / total) * 10000) / 100);
+  const dif = Math.round((100 - pcts.reduce((a, p) => a + p, 0)) * 100) / 100;
+  if (dif) pcts[lista.indexOf(Math.max(...lista))] += dif;
+  return {
+    valor,
+    regra,
+    divisao: objetivos.map((o, i) => ({
+      objetivo_id: o.id, nome: o.nome, e_reserva: o.e_reserva, percentual: Math.round(pcts[i] * 100) / 100, valor: lista[i] / 100,
+    })),
+  };
+}
+
+async function resumoMock() {
+  const objetivos = objetivosMock();
+  const total = Math.round(objetivos.reduce((a, o) => a + o.saldo_atual, 0) * 100) / 100;
+  const { limite, alerta, cdi, excedente } = LIMITE_TURBO_MOCK;
+  const atual = cicloLocal(`${db.hoje.mes}-${String(db.hoje.dia).padStart(2, '0')}`);
+  const fechado = somaMes(atual, -1);
+  const dividida = caixasMock.alocacoes.some((a) => a.mes_referencia === fechado);
+  const reserva = objetivos.find((o) => o.e_reserva);
+  return {
+    total_guardado: total,
+    objetivos: objetivos.map((o) => ({
+      id: o.id, nome: o.nome, e_reserva: o.e_reserva, saldo_atual: o.saldo_atual, meta: o.meta,
+      falta: o.meta == null ? null : Math.max(0, o.meta - o.saldo_atual),
+      percentual_concluido: o.meta ? Math.round((o.saldo_atual / o.meta) * 1000) / 10 : null,
+      peso: o.peso,
+    })),
+    reserva: {
+      multiplicador: caixasMock.multiplicador,
+      multiplicador_min: 1,
+      multiplicador_max: 6,
+      despesa_media: { valor: caixasMock.despesaMedia, base: 'ciclos_fechados', ciclos_considerados: 3 },
+      meta: reserva.meta,
+      atingida: reserva.saldo_atual >= reserva.meta,
+    },
+    limite: {
+      total_guardado: total,
+      limite,
+      gatilho_alerta: limite * alerta,
+      percentual_do_limite: Math.round((total / limite) * 10000) / 100,
+      perto_do_limite: total > limite * alerta,
+      acima_do_limite: total > limite,
+      folga_ate_limite: Math.max(0, limite - total),
+      excedente: Math.max(0, total - limite),
+      rendimento_cdi: cdi,
+      rendimento_excedente_cdi: excedente,
+    },
+    sobra: {
+      mes_referencia: fechado,
+      ciclo: janelaLocal(fechado),
+      renda_definida: true,
+      sobra: caixasMock.sobraFechada,
+      dividida,
+      pode_dividir: !dividida,
+      ciclo_aberto: {
+        mes_referencia: atual,
+        fecha_em: janelaLocal(atual).fim,
+        libera_em: somaDias(janelaLocal(atual).fim, 1),
+        previsao: (await getSaldo(atual)).disponivel,
+      },
+    },
+    alocacoes: caixasMock.alocacoes,
+  };
+}
+
+// Tudo da tela de caixinhas: objetivos, meta da reserva, teto da Caixinha
+// Turbo, sobra do último ciclo fechado e histórico de divisões.
+export async function getCaixinhas() {
+  if (!USAR_MOCK) return req('/api/caixinhas');
+  await espera(120);
+  return resumoMock();
+}
+
+// Sugestão de divisão. Sem `valor`, sobre a sobra do ciclo `mes` (padrão: o
+// último fechado); com `valor`, simula — é assim que a previsão do ciclo
+// aberto vira uma prévia antes do fechamento.
+export async function sugerirDivisao({ valor, mes } = {}) {
+  if (!USAR_MOCK) {
+    return req('/api/caixinhas/sugestao', {
+      method: 'POST',
+      body: JSON.stringify({ ...(valor != null ? { valor } : {}), ...(mes ? { mes_referencia: mes } : {}) }),
+    });
+  }
+  await espera(90);
+  return { mes_referencia: mes || null, ...dividirMock(valor != null ? valor : caixasMock.sobraFechada) };
+}
+
+// Grava a divisão. `divisao` leva `valor` exato por objetivo; o backend
+// confere que soma a sobra do ciclo ao centavo. Devolve { alocacao, resumo }.
+export async function confirmarDivisao(mes, divisao) {
+  if (!USAR_MOCK) {
+    return req('/api/caixinhas/divisoes', {
+      method: 'POST', body: JSON.stringify({ mes_referencia: mes, divisao }),
+    });
+  }
+  await espera(250);
+  divisao.forEach((d) => {
+    const o = caixasMock.objetivos.find((x) => x.id === d.objetivo_id);
+    if (o) o.saldo_atual = Math.round((o.saldo_atual + d.valor) * 100) / 100;
+  });
+  const total = divisao.reduce((a, d) => a + d.valor, 0);
+  const alocacao = {
+    mes_referencia: mes, total_sobra: total, criado_em: new Date().toISOString(),
+    divisoes: divisao.filter((d) => d.valor > 0).map((d) => ({
+      ...d, nome: caixasMock.objetivos.find((o) => o.id === d.objetivo_id)?.nome || '—',
+      percentual: Math.round((d.valor / total) * 10000) / 100,
+    })),
+  };
+  caixasMock.alocacoes.unshift(alocacao);
+  return { alocacao, resumo: await resumoMock() };
+}
+
+export async function desfazerDivisao(mes) {
+  if (!USAR_MOCK) return req(`/api/caixinhas/divisoes/${mes}`, { method: 'DELETE' });
+  await espera(150);
+  const a = caixasMock.alocacoes.find((x) => x.mes_referencia === mes);
+  (a?.divisoes || []).forEach((d) => {
+    const o = caixasMock.objetivos.find((x) => x.id === d.objetivo_id);
+    if (o) o.saldo_atual = Math.max(0, Math.round((o.saldo_atual - d.valor) * 100) / 100);
+  });
+  caixasMock.alocacoes = caixasMock.alocacoes.filter((x) => x !== a);
+  return { removido: true, mes_referencia: mes, resumo: await resumoMock() };
+}
+
+// Meses de despesa média que a reserva precisa cobrir (1 a 6). Devolve o resumo.
+export async function definirMultiplicadorReserva(multiplicador) {
+  if (!USAR_MOCK) {
+    return req('/api/caixinhas/reserva', { method: 'PATCH', body: JSON.stringify({ multiplicador }) });
+  }
+  await espera(80);
+  caixasMock.multiplicador = multiplicador;
+  return resumoMock();
+}
+
+export async function criarObjetivo(dados) {
+  if (!USAR_MOCK) return req('/api/objetivos', { method: 'POST', body: JSON.stringify(dados) });
+  await espera(150);
+  const objetivo = {
+    id: caixasMock.proximoId++, e_reserva: false, saldo_atual: 0, valor_meta: null, peso: null, ...dados,
+  };
+  caixasMock.objetivos.push(objetivo);
+  return { objetivo, resumo: await resumoMock() };
+}
+
+export async function editarObjetivo(id, campos) {
+  if (!USAR_MOCK) return req(`/api/objetivos/${id}`, { method: 'PATCH', body: JSON.stringify(campos) });
+  await espera(120);
+  const objetivo = caixasMock.objetivos.find((o) => o.id === id);
+  if (objetivo) Object.assign(objetivo, campos);
+  return { objetivo, resumo: await resumoMock() };
+}
+
+export async function removerObjetivo(id) {
+  if (!USAR_MOCK) return req(`/api/objetivos/${id}`, { method: 'DELETE' });
+  await espera(120);
+  const objetivo = caixasMock.objetivos.find((o) => o.id === id);
+  if (objetivo && objetivo.saldo_atual > 0) {
+    throw Object.assign(new Error(`"${objetivo.nome}" ainda tem saldo. Zere antes de remover.`), { status: 409 });
+  }
+  caixasMock.objetivos = caixasMock.objetivos.filter((o) => o.id !== id);
+  return { removido: true, objetivo, resumo: await resumoMock() };
+}

@@ -25,6 +25,7 @@ const Projecao = lazy(() => import('./componentes/telas/Projecao'));
 const Ajustes = lazy(() => import('./componentes/telas/Ajustes'));
 const Onboarding = lazy(() => import('./componentes/telas/Onboarding'));
 const Conselho = lazy(() => import('./componentes/telas/Conselho'));
+const Caixinhas = lazy(() => import('./componentes/telas/Caixinhas'));
 
 const TITULOS = {
   home: 'hoje',
@@ -32,6 +33,7 @@ const TITULOS = {
   historico: 'histórico',
   compromissos: 'travado',
   projecao: 'projeção',
+  caixinhas: 'caixinhas',
   conselho: 'consultor',
   config: 'ajustes',
 };
@@ -556,6 +558,7 @@ export default function App() {
               />
             )}
             {tela === 'projecao' && <Projecao projecao={projecao} aoVoltar={() => setTela('compromissos')} />}
+            {tela === 'caixinhas' && <Caixinhas aoErro={setErro} />}
             {tela === 'conselho' && (
               <Conselho
                 consulta={consulta}

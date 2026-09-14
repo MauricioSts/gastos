@@ -8,6 +8,7 @@ const TELAS = [
   ['painel', 'Painel'],
   ['historico', 'Histórico'],
   ['compromissos', 'Travado'],
+  ['caixinhas', 'Caixas'],
   ['conselho', 'Consultor'],
   ['config', 'Ajustes'],
 ];
@@ -48,7 +49,8 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
 
   const ativo = (t) => tela === t || (t === 'compromissos' && tela === 'projecao');
 
-  // Seis abas em tela de 375px: o rótulo precisa caber sem quebrar linha.
+  // Sete abas em tela de 375px: o rótulo precisa caber sem quebrar linha, e
+  // "Histórico" só cabe com o tracking mais fechado.
   const largura = `${100 / TELAS.length}%`;
 
   return (
@@ -116,7 +118,7 @@ export default function BarraEntrada({ valor, aoMudar, aoEnviar, processando, te
                 flex: `0 0 ${largura}`, minWidth: 0, minHeight: 44,
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 justifyContent: 'center', gap: 5, fontFamily: MONO, fontSize: 8.5,
-                letterSpacing: '.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                letterSpacing: '.03em', textTransform: 'uppercase', whiteSpace: 'nowrap',
                 color: on ? cor.fosforo : 'rgba(237,243,233,.38)',
               }}
             >

@@ -104,10 +104,11 @@ correta.
 6. [Variáveis de ambiente](#variáveis-de-ambiente)
 7. [Rotas e exemplos de curl](#rotas-e-exemplos-de-curl)
 8. [Consultor de compras](#consultor-de-compras)
-9. [Estrutura do projeto](#estrutura-do-projeto)
-10. [Modelo de dados](#modelo-de-dados)
-11. [Desempenho e escolha do modelo](#desempenho-e-escolha-do-modelo)
-12. [Solução de problemas](#solução-de-problemas)
+9. [Caixinhas](#caixinhas)
+10. [Estrutura do projeto](#estrutura-do-projeto)
+11. [Modelo de dados](#modelo-de-dados)
+12. [Desempenho e escolha do modelo](#desempenho-e-escolha-do-modelo)
+13. [Solução de problemas](#solução-de-problemas)
 
 ## Requisitos
 
@@ -225,6 +226,10 @@ Todas documentadas em `.env.example`.
 | `CICLO_DIA_PAGAMENTO` | `5` | Dia em que a fatura fechada é paga, no mês seguinte ao fechamento |
 | `RATE_LIMIT_JANELA_MS` | `60000` | Janela do rate limit |
 | `RATE_LIMIT_MAX` | `60` | Requisições por IP por janela |
+| `CAIXINHA_TURBO_LIMITE` | `5000` | Teto de aporte da Caixinha Turbo do Nubank. Nubank+/Ultravioleta: `10000` |
+| `CAIXINHA_TURBO_ALERTA` | `0.8` | Fração do teto acima da qual `/api/caixinhas` avisa que ele está perto |
+| `CAIXINHA_TURBO_CDI` | `115` | Rendimento da Caixinha Turbo, em % do CDI (Nubank+/Ultravioleta: `120`) |
+| `CAIXINHA_EXCEDENTE_CDI` | `100` | Rendimento do que passa do teto, numa caixinha comum |
 | `CORS_ORIGENS` | vazio | Origens de navegador autorizadas, separadas por vírgula. **Obrigatório** para o frontend hospedado em outro domínio (Vercel) conseguir chamar a API |
 
 O processo **não sobe** se `API_TOKEN` estiver ausente ou curto demais.
@@ -947,6 +952,84 @@ sentido em frase inteira ("R$ 22" ainda pode virar "R$ 224,81"). A geração par
 na primeira frase aprovada do modelo: o motivo é uma frase só, e em CPU cada
 frase a mais custa ~4s de espera real.
 
+## Caixinhas
+
+A sobra de um ciclo fechado (o `disponivel` dele: renda − comprometido − gasto
+livre) é dividida entre objetivos. A divisão é **lógica**: o dinheiro físico
+fica todo numa única Caixinha Turbo do Nubank, e as caixas do app só dizem
+quanto dele é de cada objetivo. Nenhuma rota move dinheiro, e o teto de aporte
+vale para a **soma** das caixas.
+
+Regra da sugestão (`src/services/caixinhasService.js`):
+
+| Situação | Reserva de emergência | Demais caixas |
+|---|---|---|
+| Reserva abaixo da meta | 75%, limitado ao que falta para a meta (nunca menos que 20%) | o resto |
+| Reserva na meta | 20% (manutenção) | 80% |
+| Nenhuma outra caixa com espaço | 100% | — |
+
+Entre as demais caixas a parte é dividida por `peso`; sem peso, em partes iguais,
+e uma caixa sem peso entre outras com peso entra com a média delas. Caixa com
+meta nunca passa dela: o excedente vai para as outras e, por último, volta para a
+reserva. Os centavos são repartidos pelo método do maior resto, então a soma
+sempre fecha com a sobra.
+
+A **reserva de emergência** é criada no primeiro boot, não pode ser removida nem
+renomeada e não guarda meta: a meta é `multiplicador` (1 a 6, padrão 2) × a
+despesa média (comprometido + gasto livre) dos até 6 últimos ciclos fechados com
+renda lançada. Sem ciclo fechado, a base é o ciclo aberto com o gasto livre
+projetado pelo ritmo, e `despesa_media.base` diz `estimativa_ciclo_aberto`.
+
+**Só ciclo fechado é dividido.** Dividir o ciclo aberto gravaria uma sobra que o
+gasto dos próximos dias ainda vai comer; para ele, `POST /api/caixinhas/sugestao`
+com `valor` serve de simulação e não grava nada.
+
+```bash
+# Tudo da tela: objetivos com progresso, meta da reserva, teto, sobra, histórico
+curl -s "$BASE/api/caixinhas" -H "X-API-Token: $TOKEN"
+
+# Só o alerta de teto (perto_do_limite = soma > 80% do limite)
+curl -s "$BASE/api/caixinhas/limite" -H "X-API-Token: $TOKEN"
+
+# Sugestão sobre a sobra do último ciclo fechado (ou { "mes_referencia": "2026-08" })
+curl -s -X POST "$BASE/api/caixinhas/sugestao" -H "X-API-Token: $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}'
+
+# Simulação com um valor qualquer
+curl -s -X POST "$BASE/api/caixinhas/sugestao" -H "X-API-Token: $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"valor": 359.24}'
+
+# Confirma: soma cada valor no saldo do objetivo
+curl -s -X POST "$BASE/api/caixinhas/divisoes" -H "X-API-Token: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"mes_referencia":"2026-08","divisao":[{"objetivo_id":1,"valor":839.7},{"objetivo_id":2,"valor":139.95},{"objetivo_id":3,"valor":139.95}]}'
+
+# Desfaz a divisão de um ciclo (recusa se algum saldo ficaria negativo)
+curl -s -X DELETE "$BASE/api/caixinhas/divisoes/2026-08" -H "X-API-Token: $TOKEN"
+
+# Meses de despesa da meta da reserva
+curl -s -X PATCH "$BASE/api/caixinhas/reserva" -H "X-API-Token: $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"multiplicador": 3}'
+
+# Objetivos: POST cria, PATCH edita, DELETE remove (só com saldo zero)
+curl -s -X POST "$BASE/api/objetivos" -H "X-API-Token: $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"nome":"Viagem","valor_meta":3000,"saldo_atual":800,"peso":null}'
+```
+
+Cada item de `divisao` leva `valor` **ou** `percentual`, nunca misturados. O app
+manda `valor`: percentual com duas casas perde precisão (0,01% de 1.500 são 15
+centavos), e com `valor` a soma precisa bater com a sobra ao centavo — se um gasto
+do ciclo mudou depois da sugestão, a API recusa com 400 em vez de gravar a conta
+velha. Com `percentual`, a soma aceita folga de 0,05 ponto.
+
+| Erro | Quando |
+|---|---|
+| 409 | ciclo ainda aberto; sobra do ciclo já dividida; desfazer deixaria saldo negativo; remover objetivo com saldo |
+| 422 | ciclo sem renda lançada ou sem sobra |
+| 400 | percentuais ou valores que não fecham, objetivo inexistente ou repetido, campo inválido, alterar nome/meta da reserva |
+
+Testes: `node teste-caixinhas.js` (53 casos, banco próprio criado e apagado).
+
 ## `GET /api/boot` — tudo do ciclo em uma resposta
 
 ```bash
@@ -982,12 +1065,14 @@ gastos-api/
 │   ├── db/                    conexão SQLite + schema.sql
 │   ├── middleware/            auth, rate limit, tratamento de erro
 │   ├── routes/                gastos, finanças, compromissos, health,
-│   │                          boot (tudo do ciclo numa resposta), consultor
+│   │                          boot (tudo do ciclo numa resposta), consultor,
+│   │                          caixinhas (objetivos e divisão da sobra)
 │   ├── services/              ollama, extrator, gastosService, saldoService,
 │   │                          compromissosService, painelService (dashboard),
 │   │                          configService (config editável em runtime),
 │   │                          consultorService (decide a compra),
-│   │                          conselho (escreve e confere a frase)
+│   │                          conselho (escreve e confere a frase),
+│   │                          caixinhasService (divisão da sobra e teto)
 │   └── utils/                 datas (timezone) e validação
 ├── deploy/                    unit systemd + snippet do Caddy
 ├── data/gastos.db             banco (criado no primeiro boot)
@@ -995,11 +1080,12 @@ gastos-api/
 ├── teste-atalho.js            atalho sem LLM (19 casos)
 ├── teste-ciclo.js             ciclo da fatura (16 casos)
 ├── teste-classificacao.js     matriz de classificação do LLM (18 casos)
-└── teste-consultor.js         veredito e briefing do consultor (32 casos)
+├── teste-consultor.js         veredito e briefing do consultor (32 casos)
+└── teste-caixinhas.js         divisão da sobra, teto e desfazer (53 casos)
 ```
 
-Os quatro `teste-*.js` rodam com `node`. `teste-consultor.js` cria e apaga o seu
-próprio banco (`data/teste-consultor.db`); `./test.sh` **suja o banco da
+Os cinco `teste-*.js` rodam com `node`. `teste-consultor.js` e
+`teste-caixinhas.js` criam e apagam o próprio banco; `./test.sh` **suja o banco da
 instância que ele ataca**, então aponte-o para uma instância isolada:
 
 ```bash
@@ -1058,6 +1144,17 @@ consultados, inclusive meses anteriores ao cadastro dela — a tabela não guard
 mês de início. Isso não afeta o mês corrente nem a projeção, só a consulta de
 meses passados. Resolver exige acrescentar `mes_inicio`/`mes_fim` a
 `contas_fixas`.
+
+**`objetivos`** — `id`, `nome`, `e_reserva` (0/1, no máximo uma linha com 1),
+`valor_meta` (null = sem meta; sempre null na reserva, cuja meta é calculada),
+`saldo_atual` (≥ 0), `peso` (null = sem preferência), `criado_em`.
+
+**`alocacoes_mensais`** — `id`, `mes_referencia` (`YYYY-MM`, único: uma divisão
+por ciclo), `total_sobra`, `criado_em`.
+
+**`alocacao_divisoes`** — `id`, `alocacao_id` (cascade), `objetivo_id` (SET NULL
+se o objetivo for apagado), `objetivo_nome` (cópia, para o histórico sobreviver),
+`percentual`, `valor`.
 
 Consultas diretas ao banco:
 

@@ -46,6 +46,17 @@ const config = {
     // Dia em que a fatura fechada e paga, no mes seguinte ao fechamento.
     diaPagamento: num('CICLO_DIA_PAGAMENTO', 5),
   },
+  // Caixinha Turbo do Nubank, onde fica o dinheiro fisico de todas as
+  // caixinhas do app. Cliente comum: aporte ate R$ 5.000 rendendo 115% do CDI;
+  // o que passa disso so rende 100% numa caixinha comum. Nubank+/Ultravioleta
+  // sobe para R$ 10.000 a 120% -- troca aqui pelo .env, sem mexer em codigo.
+  caixinhaTurbo: {
+    limite: num('CAIXINHA_TURBO_LIMITE', 5000),
+    // Fracao do limite a partir da qual o app avisa que o teto esta perto.
+    alerta: num('CAIXINHA_TURBO_ALERTA', 0.8),
+    rendimentoCdi: num('CAIXINHA_TURBO_CDI', 115),
+    rendimentoExcedenteCdi: num('CAIXINHA_EXCEDENTE_CDI', 100),
+  },
   rateLimit: {
     janelaMs: num('RATE_LIMIT_JANELA_MS', 60000),
     maxReqs: num('RATE_LIMIT_MAX', 60),

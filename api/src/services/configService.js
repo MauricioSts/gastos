@@ -29,6 +29,9 @@ const PADROES = {
   // Avisar quando falta um dia para a fatura fechar. Fica no servidor, e nao
   // no navegador, para o ajuste seguir a pessoa entre celular e desktop.
   fatura_notificar: true,
+  // Meta da reserva de emergencia, em meses de despesa media (1 a 6). Padrao 2
+  // porque a renda e baixa: 6 meses levaria anos para fechar e desanimaria.
+  reserva_multiplicador: 2,
 };
 
 // Cache em memoria: estas chaves sao lidas em toda requisicao de saldo e

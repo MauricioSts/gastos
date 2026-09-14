@@ -11,6 +11,7 @@ const rotaCompromissos = require('./routes/compromissos');
 const rotaHealth = require('./routes/health');
 const rotaBoot = require('./routes/boot');
 const rotaConsultor = require('./routes/consultor');
+const rotaCaixinhas = require('./routes/caixinhas');
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use('/api', rotaFinancas);
 app.use('/api', rotaCompromissos);
 app.use('/api', rotaBoot);
 app.use('/api', rotaConsultor);
+app.use('/api', rotaCaixinhas);
 
 app.use(naoEncontrado);
 app.use(tratarErro);

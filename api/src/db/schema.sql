@@ -86,3 +86,48 @@ CREATE TABLE IF NOT EXISTS configuracoes (
   valor         TEXT NOT NULL,
   atualizado_em TEXT NOT NULL
 );
+
+-- ---------------------------------------------------------------------------
+-- Caixinhas: divisao LOGICA da sobra do ciclo entre objetivos.
+-- Nenhum dinheiro se move. O saldo fisico fica todo numa unica Caixinha Turbo
+-- do Nubank; estas linhas so dizem quanto dele pertence a cada objetivo.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS objetivos (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome        TEXT    NOT NULL,
+  -- A reserva de emergencia e unica e nunca guarda meta: a dela e calculada a
+  -- cada leitura a partir das despesas medias, entao acompanha o custo de vida.
+  e_reserva   INTEGER NOT NULL DEFAULT 0 CHECK (e_reserva IN (0, 1)),
+  valor_meta  REAL    CHECK (valor_meta IS NULL OR valor_meta > 0),  -- null = sem meta
+  saldo_atual REAL    NOT NULL DEFAULT 0 CHECK (saldo_atual >= 0),
+  -- Peso na divisao da parte que nao vai para a reserva. Null = sem preferencia.
+  peso        REAL    CHECK (peso IS NULL OR peso >= 0),
+  criado_em   TEXT    NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_objetivos_uma_reserva ON objetivos (e_reserva) WHERE e_reserva = 1;
+
+-- A reserva existe desde o primeiro boot: a regra de divisao depende dela.
+INSERT INTO objetivos (nome, e_reserva, criado_em)
+SELECT 'Reserva de emergência', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE NOT EXISTS (SELECT 1 FROM objetivos WHERE e_reserva = 1);
+
+-- Uma divisao por ciclo: dividir a mesma sobra duas vezes inventaria dinheiro.
+CREATE TABLE IF NOT EXISTS alocacoes_mensais (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  mes_referencia TEXT    NOT NULL UNIQUE,  -- YYYY-MM do ciclo cuja sobra foi dividida
+  total_sobra    REAL    NOT NULL CHECK (total_sobra > 0),
+  criado_em      TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS alocacao_divisoes (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  alocacao_id   INTEGER NOT NULL REFERENCES alocacoes_mensais (id) ON DELETE CASCADE,
+  -- SET NULL + nome copiado: apagar um objetivo nao apaga o historico.
+  objetivo_id   INTEGER REFERENCES objetivos (id) ON DELETE SET NULL,
+  objetivo_nome TEXT    NOT NULL,
+  percentual    REAL    NOT NULL CHECK (percentual >= 0 AND percentual <= 100),
+  valor         REAL    NOT NULL CHECK (valor >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alocacao_divisoes_alocacao ON alocacao_divisoes (alocacao_id);

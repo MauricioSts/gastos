@@ -12,6 +12,7 @@ const rotaHealth = require('./routes/health');
 const rotaBoot = require('./routes/boot');
 const rotaConsultor = require('./routes/consultor');
 const rotaCaixinhas = require('./routes/caixinhas');
+const rotaVocabulario = require('./routes/vocabulario');
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api', rotaCompromissos);
 app.use('/api', rotaBoot);
 app.use('/api', rotaConsultor);
 app.use('/api', rotaCaixinhas);
+app.use('/api', rotaVocabulario);
 
 app.use(naoEncontrado);
 app.use(tratarErro);

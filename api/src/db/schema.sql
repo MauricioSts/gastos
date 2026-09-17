@@ -131,3 +131,44 @@ CREATE TABLE IF NOT EXISTS alocacao_divisoes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_alocacao_divisoes_alocacao ON alocacao_divisoes (alocacao_id);
+
+-- ---------------------------------------------------------------------------
+-- Vocabulario aprendido: como o usuario chama as coisas.
+-- Cada correcao de categoria feita no app grava o termo da mensagem original
+-- ("halls" -> alimentacao). O atalho consulta esta tabela ANTES da lista fixa
+-- de termos, entao a correcao do usuario sempre vence o palpite do codigo.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS vocabulario (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  termo         TEXT    NOT NULL UNIQUE,   -- minusculo, sem acento, sem numero
+  categoria     TEXT    NOT NULL,
+  descricao     TEXT,                      -- descricao gravada no gasto; null = o proprio termo
+  origem        TEXT    NOT NULL CHECK (origem IN ('edicao', 'manual')),
+  vezes         INTEGER NOT NULL DEFAULT 1, -- quantas vezes o usuario confirmou/corrigiu
+  usos          INTEGER NOT NULL DEFAULT 0, -- quantos lancamentos ele ja resolveu
+  criado_em     TEXT    NOT NULL,
+  atualizado_em TEXT    NOT NULL
+);
+
+-- ---------------------------------------------------------------------------
+-- Registro do consultor: cada pergunta, o que foi entendido dela e a resposta.
+-- Pergunta marcada como errada vira caso de teste (ver casos-reclamados.js).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS consultas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  pergunta    TEXT    NOT NULL,
+  mes         TEXT    NOT NULL,
+  tipo        TEXT    NOT NULL,             -- compra | geral
+  valor       REAL,
+  parcelas    INTEGER,
+  reserva     REAL,
+  veredito    TEXT    NOT NULL,
+  texto       TEXT,                         -- null enquanto a resposta e escrita
+  analise     TEXT    NOT NULL,             -- JSON completo, para reproduzir o caso
+  nota        INTEGER CHECK (nota IS NULL OR nota IN (-1, 1)),
+  comentario  TEXT,
+  criado_em   TEXT    NOT NULL,
+  avaliado_em TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_consultas_nota ON consultas (nota);

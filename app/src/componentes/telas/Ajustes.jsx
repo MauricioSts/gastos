@@ -1,12 +1,120 @@
 import { useEffect, useState } from 'react';
-import { nomeMes, dataCurta, USAR_MOCK } from '../../api';
+import {
+  nomeMes, dataCurta, USAR_MOCK, LISTA_CAT, ROTULO_CAT,
+  getVocabulario, ensinarTermo, esquecerTermo,
+} from '../../api';
 import { fmt } from '../../utils/formato';
 import { cor, MONO, SANS, rotulo } from '../../tema';
 
-// Ajustes: renda do mês, ciclo da fatura, aviso, conexão e dados.
+// Vocabulário: como você chama as coisas. Cada categoria corrigida num
+// lançamento entra aqui sozinha; dá para ensinar um termo antes de usar e
+// esquecer um que foi aprendido errado.
+function Vocabulario({ aoErro }) {
+  const [termos, setTermos] = useState(null);
+  const [termo, setTermo] = useState('');
+  const [categoria, setCategoria] = useState('alimentacao');
+
+  useEffect(() => {
+    let vivo = true;
+    getVocabulario()
+      .then((t) => { if (vivo) setTermos(t); })
+      .catch((e) => { if (vivo) { setTermos([]); aoErro(e.message || 'Não consegui carregar o vocabulário.'); } });
+    return () => { vivo = false; };
+  }, [aoErro]);
+
+  const ensinar = async () => {
+    if (!termo.trim()) return;
+    try {
+      const novo = await ensinarTermo(termo.trim(), categoria);
+      setTermos((lista) => [novo, ...(lista || []).filter((t) => t.termo !== novo.termo)]);
+      setTermo('');
+    } catch (e) {
+      aoErro(e.message || 'Não consegui ensinar esse termo.');
+    }
+  };
+
+  const esquecer = async (id) => {
+    try {
+      await esquecerTermo(id);
+      setTermos((lista) => (lista || []).filter((t) => t.id !== id));
+    } catch (e) {
+      aoErro(e.message || 'Não consegui esquecer esse termo.');
+    }
+  };
+
+  return (
+    <>
+      <div style={rotulo({ margin: '26px 0 9px' })}>Vocabulário</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={termo}
+          onChange={(e) => setTermo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') ensinar(); }}
+          placeholder="ex.: halls"
+          aria-label="Termo para ensinar"
+          style={{
+            flex: 1, minWidth: 0, border: `1px solid ${cor.divisorForte}`, borderRadius: 12,
+            background: cor.fundo, padding: '10px 12px', fontSize: 16, color: cor.tinta, outline: 'none',
+          }}
+        />
+        <select
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+          aria-label="Categoria do termo"
+          style={{
+            width: 118, border: `1px solid ${cor.divisorForte}`, borderRadius: 12, background: cor.fundo,
+            padding: '0 6px', fontFamily: MONO, fontSize: 10.5, textTransform: 'uppercase',
+            color: cor.tinta, outline: 'none', minHeight: 44,
+          }}
+        >
+          {LISTA_CAT.map((c) => <option key={c} value={c}>{ROTULO_CAT[c]}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={ensinar}
+          style={{
+            background: cor.fosforo, color: cor.fundo, borderRadius: 12, padding: '0 12px', minHeight: 44,
+            fontFamily: MONO, fontSize: 10, letterSpacing: '.14em', fontWeight: 600,
+          }}
+        >
+          ENSINAR
+        </button>
+      </div>
+
+      {termos === null && (
+        <div style={{ fontFamily: MONO, fontSize: 10.5, opacity: 0.45, marginTop: 10 }}>carregando…</div>
+      )}
+      {termos && termos.map((t) => (
+        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 2px', borderBottom: `1px solid ${cor.divisor}` }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {t.termo}
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: cor.fosforo, flex: 'none' }}>
+            {ROTULO_CAT[t.categoria] || t.categoria}
+          </span>
+          {t.usos > 0 && (
+            <span style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.4, flex: 'none' }}>{t.usos}×</span>
+          )}
+          <button type="button" onClick={() => esquecer(t.id)} aria-label={`Esquecer ${t.termo}`} style={{ opacity: 0.5, padding: '0 6px', minHeight: 44, fontSize: 14 }}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <div style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.32, marginTop: 9, lineHeight: 1.7 }}>
+        {termos && termos.length === 0
+          ? 'Nada aprendido ainda. '
+          : ''}
+        Quando você troca a categoria de um lançamento, o termo entra aqui e o
+        próximo lançamento com ele já sai nessa categoria, sem passar pelo modelo.
+      </div>
+    </>
+  );
+}
+
+// Ajustes: renda do mês, ciclo da fatura, aviso, vocabulário, conexão e dados.
 export default function Ajustes({
   mes, saldo, ciclo, rendas, avisar, aoAlternarAviso, aoTestarAviso, aoSalvarFechamento,
-  aoSalvarRenda, aoRemoverRenda, aoTestarSaude, aoExportar, aoRefazer,
+  aoSalvarRenda, aoRemoverRenda, aoTestarSaude, aoExportar, aoRefazer, aoErro,
 }) {
   const [renda, setRenda] = useState('');
   const [saude, setSaude] = useState('não testado');
@@ -156,6 +264,9 @@ export default function Ajustes({
         fechamento recalcula todos os meses — nenhum gasto guarda a que ciclo
         pertence, é a janela que decide.
       </div>
+
+      {/* ------------------------------ Vocabulário ----------------------------- */}
+      <Vocabulario aoErro={aoErro} />
 
       {/* -------------------------------- Conexão ------------------------------- */}
       <div style={rotulo({ margin: '26px 0 9px' })}>Conexão</div>

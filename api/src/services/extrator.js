@@ -11,6 +11,7 @@
 // mes corrente e tem desfazer, entao vao direto.
 const { chatEstruturado } = require('./ollama');
 const { tentarAtalho } = require('./atalho');
+const vocabulario = require('./vocabularioService');
 const {
   CATEGORIAS, LIMITE_DESCRICAO, normalizarValor, emCentavos,
   categoriaValida, limparTexto,
@@ -198,9 +199,14 @@ function validarSaida(bruto) {
 // Extrai o lancamento de uma mensagem. Em caso de saida invalida, tenta
 // exatamente mais uma vez antes de desistir (requisito do projeto).
 async function extrairGasto(mensagem) {
-  // Lancamento cotidiano sai daqui sem tocar no LLM.
-  const atalho = tentarAtalho(mensagem);
-  if (atalho) return atalho;
+  // Lancamento cotidiano sai daqui sem tocar no LLM. O vocabulario aprendido
+  // com as correcoes do usuario entra primeiro.
+  const aprendido = vocabulario.buscar(mensagem);
+  const atalho = tentarAtalho(mensagem, aprendido);
+  if (atalho) {
+    if (aprendido) vocabulario.registrarUso(aprendido.id);
+    return atalho;
+  }
 
   const mensagens = [
     { role: 'system', content: PROMPT_SISTEMA },
@@ -214,12 +220,20 @@ async function extrairGasto(mensagem) {
     const validado = validarSaida(resposta.objeto);
 
     if (validado.ok) {
+      // Mensagem que o atalho recusou (parcela, data, dois numeros) mas cujo
+      // termo o usuario ja ensinou: o modelo decide o TIPO e os numeros, a
+      // categoria continua sendo a que o usuario escolheu.
+      const ensinada = aprendido && validado.dados.tipo !== 'entrada'
+        && validado.dados.categoria !== aprendido.categoria;
+      if (aprendido && validado.dados.tipo !== 'entrada') vocabulario.registrarUso(aprendido.id);
       return {
         ...validado.dados,
+        ...(ensinada ? { categoria: aprendido.categoria } : {}),
         _meta: {
           tentativas: tentativa,
           duracao_ms: resposta.duracaoMs,
           modelo: resposta.modelo,
+          ...(ensinada ? { categoria_do_vocabulario: aprendido.termo } : {}),
         },
       };
     }

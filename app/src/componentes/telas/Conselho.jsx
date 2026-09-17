@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Mascote from '../Mascote';
 import { cor, MONO, cardAlto, rotulo, meta, caixa } from '../../tema';
 import { fmt, fmt0 } from '../../utils/formato';
@@ -200,7 +200,90 @@ function Conta({ a }) {
   );
 }
 
-export default function Conselho({ consulta, corOlho, aoPerguntar, aoLimpar }) {
+// O que o servidor entendeu da pergunta, em uma linha. Se "1500 em 10x" virar
+// "1500 à vista", o erro aparece aqui antes de a pessoa ler a resposta.
+function Entendido({ a }) {
+  if (!a || a.tipo !== 'compra') return null;
+  const partes = [`R$ ${fmt(a.valor)}`];
+  if (a.parcelado_pedido) partes.push(`em ${a.parcelado_pedido.parcelas}×`);
+  if (a.reserva != null) partes.push(`${fmt0(a.reserva)} livres/mês`);
+  return (
+    <div style={meta({ marginTop: 6, opacity: 0.45, fontStyle: 'normal' })}>
+      entendi: {partes.join(' · ')}
+    </div>
+  );
+}
+
+// "Ajudou" / "errou". A resposta marcada como errada vai para a fila de casos
+// do servidor e vira teste antes do conserto -- é assim que o consultor
+// aprende o jeito de perguntar de quem usa.
+function Avaliacao({ nota, aoAvaliar }) {
+  const [escrevendo, setEscrevendo] = useState(false);
+  const [comentario, setComentario] = useState('');
+
+  const botao = (ativo, corAtiva) => ({
+    flex: 1, minHeight: 44, borderRadius: 14, fontFamily: MONO, fontSize: 10.5,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    letterSpacing: '.14em', textTransform: 'uppercase',
+    border: `1px solid ${ativo ? corAtiva : cor.divisorForte}`,
+    color: ativo ? corAtiva : cor.tinta, opacity: ativo ? 1 : 0.7,
+  });
+
+  if (nota === 1 || (nota === -1 && !escrevendo)) {
+    return (
+      <div style={meta({ marginTop: 14, opacity: 0.55 })}>
+        {nota === 1
+          ? 'Valeu. Anotado que essa ajudou.'
+          : 'Anotado. Essa pergunta vai virar caso de teste antes do conserto.'}
+      </div>
+    );
+  }
+
+  if (escrevendo) {
+    return (
+      <div style={{ marginTop: 14 }}>
+        <div style={rotulo({ marginBottom: 8 })}>O que estava errado?</div>
+        <textarea
+          value={comentario}
+          onChange={(e) => setComentario(e.target.value)}
+          rows={2}
+          placeholder="ex.: pedi 10x e ele respondeu 12x"
+          aria-label="O que estava errado na resposta"
+          style={caixa({
+            width: '100%', boxSizing: 'border-box', padding: '11px 13px', fontSize: 16,
+            color: cor.tinta, resize: 'none', outline: 'none',
+          })}
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button type="button" onClick={() => { setEscrevendo(false); aoAvaliar(-1); }} style={botao(false)}>
+            Pular
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEscrevendo(false); aoAvaliar(-1, comentario.trim()); }}
+            style={{ ...botao(true, cor.alerta), fontWeight: 600 }}
+          >
+            Enviar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={rotulo({ marginBottom: 8 })}>Essa resposta</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={() => aoAvaliar(1)} style={botao(false)}>✓ ajudou</button>
+        <button type="button" onClick={() => setEscrevendo(true)} style={botao(false)}>✕ errou</button>
+      </div>
+    </div>
+  );
+}
+
+export default function Conselho({
+  consulta, corOlho, aoPerguntar, aoLimpar, aoAvaliar,
+}) {
   const fim = useRef(null);
 
   // O texto cresce palavra por palavra; sem isto a frase nova nasce fora da
@@ -256,7 +339,9 @@ export default function Conselho({ consulta, corOlho, aoPerguntar, aoLimpar }) {
     );
   }
 
-  const { pergunta, veredito, titulo, analise, texto, pensando, erro } = consulta;
+  const {
+    id, pergunta, veredito, titulo, analise, texto, pensando, erro, nota,
+  } = consulta;
   const acento = CORES[veredito] || cor.fosforo;
 
   return (
@@ -265,6 +350,7 @@ export default function Conselho({ consulta, corOlho, aoPerguntar, aoLimpar }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
         <div style={{ fontSize: 14, opacity: 0.55, fontStyle: 'italic', minWidth: 0, lineHeight: 1.4 }}>
           “{pergunta}”
+          <Entendido a={analise} />
         </div>
         <button
           type="button"
@@ -326,6 +412,8 @@ export default function Conselho({ consulta, corOlho, aoPerguntar, aoLimpar }) {
           )}
         </div>
       )}
+
+      {id && veredito && !pensando && aoAvaliar && <Avaliacao key={id} nota={nota} aoAvaliar={aoAvaliar} />}
 
       {analise && <Conta a={analise} />}
       <div ref={fim} />

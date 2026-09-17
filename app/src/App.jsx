@@ -71,6 +71,13 @@ export default function App() {
   const [onboardando, setOnboardando] = useState(false);
 
   const [avisoAberto, setAvisoAberto] = useState(false);
+  // Termo que o app acabou de aprender com uma correção de categoria.
+  const [aprendido, setAprendido] = useState(null);
+  useEffect(() => {
+    if (!aprendido) return undefined;
+    const t = setTimeout(() => setAprendido(null), 5000);
+    return () => clearTimeout(t);
+  }, [aprendido]);
   const [avisoDispensado, setAvisoDispensado] = useState(false);
 
   // Retrato do ultimo boot, vindo do localStorage: a tela abre com numero em
@@ -228,7 +235,9 @@ export default function App() {
         mes,
         sinal: controlador.signal,
         aoAnalise: (a) => setConsulta((c) => (c && c.pergunta === pergunta
-          ? { ...c, veredito: a.veredito, titulo: a.titulo, analise: a.analise }
+          ? {
+            ...c, id: a.consulta_id, veredito: a.veredito, titulo: a.titulo, analise: a.analise,
+          }
           : c)),
         aoTexto: (pedaco) => setConsulta((c) => (c && c.pergunta === pergunta
           ? { ...c, texto: (c.texto || '') + pedaco }
@@ -293,7 +302,8 @@ export default function App() {
     if (!gasto || !campos) return;
     const mudou = campos.valor !== gasto.valor || campos.categoria !== gasto.categoria;
     if (mudou) {
-      await api.editarGasto(gasto.id, campos);
+      const r = await api.editarGasto(gasto.id, campos);
+      if (r && r.aprendido) setAprendido(r.aprendido);
       recarregar();
     }
   };
@@ -564,6 +574,17 @@ export default function App() {
                 consulta={consulta}
                 corOlho={corOlho}
                 aoPerguntar={perguntar}
+                aoAvaliar={async (nota, comentario) => {
+                  const id = consulta && consulta.id;
+                  if (!id) return;
+                  setConsulta((c) => (c && c.id === id ? { ...c, nota } : c));
+                  try {
+                    await api.avaliarConsulta(id, nota, comentario);
+                  } catch (e) {
+                    setConsulta((c) => (c && c.id === id ? { ...c, nota: undefined } : c));
+                    setErro(e.message || 'Não consegui registrar a avaliação.');
+                  }
+                }}
                 aoLimpar={() => { consultaEmCurso.current?.abort(); setConsulta(null); }}
               />
             )}
@@ -576,6 +597,7 @@ export default function App() {
                 aoSalvarRenda={salvarRenda} aoRemoverRenda={async (id) => { await api.removerRenda(id, mes); recarregar(); }}
                 aoTestarSaude={api.health}
                 aoExportar={exportarCsv} aoRefazer={refazerOnboarding}
+                aoErro={setErro}
               />
             )}
           </Suspense>
@@ -593,6 +615,14 @@ export default function App() {
             ? `Dia ${fatura.dia_fechamento} · ${fmt0(fatura.total_ciclo)} no ciclo · vence dia ${fatura.dia_vencimento}. Ainda dá tempo de segurar o que não é essencial.`
             : ''}
           aoFechar={() => { setAvisoAberto(false); setAvisoDispensado(true); }}
+        />
+      )}
+
+      {aprendido && !avisoAberto && (
+        <Notificacao
+          titulo="Aprendi"
+          texto={`“${aprendido.termo}” agora é ${rotuloCategoria(aprendido.categoria)}. Da próxima vez já sai assim.`}
+          aoFechar={() => setAprendido(null)}
         />
       )}
 

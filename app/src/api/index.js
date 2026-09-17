@@ -440,12 +440,52 @@ export async function removerGasto(id) {
   return getSaldo();
 }
 
+// A resposta traz `aprendido` quando a categoria mudou: o backend grava o termo
+// da mensagem original e o próximo lançamento com ele já sai certo.
 export async function editarGasto(id, campos) {
   if (!USAR_MOCK) return req(`/api/gastos/${id}`, { method: 'PATCH', body: JSON.stringify(campos) });
   await espera(120);
   const g = db.gastos.find((x) => x.id === id);
+  let aprendido = null;
+  if (g && campos.categoria && campos.categoria !== g.categoria && g.descricao) {
+    aprendido = { termo: g.descricao.toLowerCase(), categoria: campos.categoria };
+    vocabularioMock = [
+      { id: Date.now(), ...aprendido, usos: 0, vezes: 1, origem: 'edicao' },
+      ...vocabularioMock.filter((t) => t.termo !== aprendido.termo),
+    ];
+  }
   if (g) Object.assign(g, campos);
-  return getSaldo();
+  return { gasto: g, aprendido, saldo: await getSaldo() };
+}
+
+// ---------------------------------------------------------------------------
+// Vocabulário aprendido
+// ---------------------------------------------------------------------------
+// Como o usuário chama as coisas. Cresce sozinho a cada categoria corrigida e
+// pode ser ensinado ou esquecido na tela de ajustes.
+let vocabularioMock = [];
+
+export async function getVocabulario() {
+  if (!USAR_MOCK) return (await req('/api/vocabulario')).termos || [];
+  await espera(80);
+  return vocabularioMock;
+}
+
+export async function ensinarTermo(termo, categoria) {
+  if (!USAR_MOCK) {
+    return (await req('/api/vocabulario', { method: 'POST', body: JSON.stringify({ termo, categoria }) })).termo;
+  }
+  await espera(80);
+  const t = { id: Date.now(), termo: termo.trim().toLowerCase(), categoria, usos: 0, vezes: 1, origem: 'manual' };
+  vocabularioMock = [t, ...vocabularioMock.filter((x) => x.termo !== t.termo)];
+  return t;
+}
+
+export async function esquecerTermo(id) {
+  if (!USAR_MOCK) return req(`/api/vocabulario/${id}`, { method: 'DELETE' });
+  await espera(80);
+  vocabularioMock = vocabularioMock.filter((t) => t.id !== id);
+  return { removido: true };
 }
 
 // Entradas de renda do mês, em ordem de valor.
@@ -841,6 +881,7 @@ export async function consultar({ pergunta, mes, aoAnalise, aoTexto, sinal }) {
     await espera(220);
     const { valor } = leCompraMock(pergunta);
     const analise = {
+      consulta_id: Date.now(),
       tipo: valor ? 'compra' : 'geral',
       veredito: valor ? (valor <= 200 ? 'cabe_agora' : 'esperar') : 'contexto',
       titulo: valor ? (valor <= 200 ? 'Cabe agora, à vista.' : 'Melhor esperar.') : null,
@@ -907,6 +948,18 @@ export async function consultar({ pergunta, mes, aoAnalise, aoTexto, sinal }) {
   if (buffer.trim()) processar(buffer);
 
   return { ...(analise || {}), texto };
+}
+
+// "Ajudou" (1) ou "errou" (-1). A resposta marcada como errada fica na fila de
+// casos do backend (casos-reclamados.js) para virar teste antes do conserto.
+export async function avaliarConsulta(id, nota, comentario) {
+  if (!USAR_MOCK) {
+    return req(`/api/consultor/${id}/avaliacao`, {
+      method: 'POST', body: JSON.stringify({ nota, ...(comentario ? { comentario } : {}) }),
+    });
+  }
+  await espera(80);
+  return { consulta: { id, nota, comentario: comentario || null } };
 }
 
 // Leitura de valor da pergunta, só para o modo demonstração. No real quem lê é

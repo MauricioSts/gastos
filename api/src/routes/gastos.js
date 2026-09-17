@@ -9,6 +9,7 @@ const {
 } = require('../utils/validacao');
 const { cicloAtual } = require('../utils/ciclo');
 const compromissosService = require('../services/compromissosService');
+const vocabulario = require('../services/vocabularioService');
 
 const router = express.Router();
 
@@ -196,10 +197,21 @@ function lerId(req) {
 }
 
 // PATCH /api/gastos/:id -> correcao manual quando o LLM erra.
+// Trocar a categoria ensina o vocabulario: o proximo lancamento com o mesmo
+// termo ja sai com a categoria corrigida. `aprendido` diz o que ficou gravado.
 router.patch('/:id', (req, res, next) => {
   try {
-    const gasto = gastosService.atualizarGasto(lerId(req), req.body || {});
-    res.json({ gasto, saldo: calcularSaldo(gasto.data_gasto.slice(0, 7)) });
+    const id = lerId(req);
+    const antes = gastosService.buscarGasto(id);
+    const gasto = gastosService.atualizarGasto(id, req.body || {});
+    const aprendido = gasto.categoria !== antes.categoria
+      ? vocabulario.aprenderDeEdicao(gasto, gasto.categoria)
+      : null;
+    res.json({
+      gasto,
+      aprendido: aprendido && { termo: aprendido.termo, categoria: aprendido.categoria },
+      saldo: calcularSaldo(gasto.data_gasto.slice(0, 7)),
+    });
   } catch (e) {
     next(e);
   }

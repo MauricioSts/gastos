@@ -104,11 +104,12 @@ correta.
 6. [Variáveis de ambiente](#variáveis-de-ambiente)
 7. [Rotas e exemplos de curl](#rotas-e-exemplos-de-curl)
 8. [Consultor de compras](#consultor-de-compras)
-9. [Caixinhas](#caixinhas)
-10. [Estrutura do projeto](#estrutura-do-projeto)
-11. [Modelo de dados](#modelo-de-dados)
-12. [Desempenho e escolha do modelo](#desempenho-e-escolha-do-modelo)
-13. [Solução de problemas](#solução-de-problemas)
+9. [Aprendizado](#aprendizado)
+10. [Caixinhas](#caixinhas)
+11. [Estrutura do projeto](#estrutura-do-projeto)
+12. [Modelo de dados](#modelo-de-dados)
+13. [Desempenho e escolha do modelo](#desempenho-e-escolha-do-modelo)
+14. [Solução de problemas](#solução-de-problemas)
 
 ## Requisitos
 
@@ -447,6 +448,10 @@ curl -s -X PATCH $BASE/api/gastos/2 \
   -H "X-API-Token: $TOKEN" -H 'Content-Type: application/json' \
   -d '{"categoria":"compras","valor":"47,90"}' | jq
 ```
+
+Quando a `categoria` muda, a resposta traz `aprendido: { termo, categoria }`:
+o termo da mensagem original foi gravado no vocabulário (ver
+[Aprendizado](#aprendizado)). Sem troca de categoria, `aprendido` é `null`.
 
 ### `DELETE /api/gastos/:id` — remove um gasto
 
@@ -951,6 +956,44 @@ Os pedaços são frases fechadas, não tokens: a conferência de número só faz
 sentido em frase inteira ("R$ 22" ainda pode virar "R$ 224,81"). A geração para
 na primeira frase aprovada do modelo: o motivo é uma frase só, e em CPU cada
 frase a mais custa ~4s de espera real.
+
+## Aprendizado
+
+O modelo não é treinado. Ajuste fino de um 3B numa VM ARM sem GPU, com poucas
+dezenas de mensagens reais, levaria dias e decoraria os exemplos. O que aprende
+são duas tabelas alimentadas pelo uso.
+
+**Vocabulário (`vocabulario`).** Trocar a categoria de um lançamento grava o
+termo da mensagem original: número, `reais`, `ontem`, verbos como `gastei` e
+preposições saem, e sobra no máximo 4 palavras (`"12 reais morango cravejado"`
+→ `morango cravejado`). Se a descrição do gasto é um pedaço desse termo
+(`morango`), o pedaço também é gravado, porque é ele que se repete. No próximo
+lançamento o vocabulário é consultado **antes** da lista fixa do atalho: um
+termo casado resolve em ~1ms com `llm.modelo = "vocabulario"`. As travas do
+atalho continuam valendo (parcela, recorrência, entrada, data estranha, dois
+números); nesses casos o LLM decide o tipo e os números, e a categoria vem do
+vocabulário (`llm.categoria_do_vocabulario`). Entre termos que casam, ganha o
+de mais palavras.
+
+- `GET /api/vocabulario` — lista, mais recente primeiro (`usos` = lançamentos resolvidos)
+- `POST /api/vocabulario` `{ termo, categoria, descricao? }` — ensina direto
+- `DELETE /api/vocabulario/:id` — esquece
+
+**Registro do consultor (`consultas`).** Toda pergunta fica gravada com o que
+foi lido dela (`valor`, `parcelas`, `reserva`), o veredito, o texto e a análise
+completa. A resposta de `/api/consultor` e o evento `analise` do stream trazem
+`consulta_id`; o app mostra "ajudou / errou" embaixo da resposta.
+
+- `POST /api/consultor/:id/avaliacao` `{ nota: 1 | -1 | null, comentario? }`
+- `GET /api/consultor/historico?nota=-1&limite=50`
+
+`node casos-reclamados.js` lista as marcadas como erradas, com o que foi
+entendido na hora e o que a leitura atual entende da mesma frase
+(`--todas` lista tudo). Cada caso vira teste em `teste-consultor.js` antes do
+conserto.
+
+Testes: `node teste-aprendizado.js` (36 casos, sobe instância própria na porta
+3401 com banco descartável; nenhum caso chama o LLM).
 
 ## Caixinhas
 

@@ -13,7 +13,10 @@ const express = require('express');
 const { lerCompra, analisarCompra, analisarGeral } = require('../services/consultorService');
 const { escrever, fraseDoVeredito, VEREDITOS } = require('../services/conselho');
 const { ErroOllama } = require('../services/ollama');
-const { ErroApi, limparTexto, LIMITE_MENSAGEM } = require('../utils/validacao');
+const consultas = require('../services/consultasService');
+const {
+  ErroApi, limparTexto, LIMITE_MENSAGEM, inteiroPositivo,
+} = require('../utils/validacao');
 const ciclo = require('../utils/ciclo');
 
 const router = express.Router();
@@ -47,13 +50,32 @@ function prepararAnalise(corpo) {
     ? analisarCompra({ valor, parcelas, mes, reserva })
     : analisarGeral({ mes });
 
-  return { pergunta, analise };
+  // Toda pergunta fica registrada. Falha no registro nao pode derrubar a
+  // resposta: sem id, o app so nao mostra os botoes de avaliar.
+  let consultaId = null;
+  try {
+    consultaId = consultas.registrar({ pergunta, mes, analise });
+  } catch (e) {
+    console.warn(`[consultor] nao registrei a consulta: ${e.message}`);
+  }
+
+  return { pergunta, analise, consultaId };
+}
+
+function concluir(consultaId, texto) {
+  if (!consultaId) return;
+  try {
+    consultas.concluir(consultaId, texto);
+  } catch (e) {
+    console.warn(`[consultor] nao gravei o texto da consulta ${consultaId}: ${e.message}`);
+  }
 }
 
 // Resposta so com a analise, sem uma palavra de LLM. O app pinta a tela com
 // isto antes de o modelo comecar a escrever.
-function corpoAnalise(pergunta, analise) {
+function corpoAnalise(pergunta, analise, consultaId) {
   return {
+    consulta_id: consultaId,
     pergunta,
     tipo: analise.tipo,
     veredito: analise.veredito,
@@ -65,12 +87,13 @@ function corpoAnalise(pergunta, analise) {
 // POST /api/consultor { pergunta, mes?, valor?, parcelas? }
 router.post('/consultor', async (req, res, next) => {
   try {
-    const { pergunta, analise } = prepararAnalise(req.body || {});
+    const { pergunta, analise, consultaId } = prepararAnalise(req.body || {});
     // `escrever` ja comeca pela frase calculada e nao levanta ErroOllama: o
     // pior caso e a resposta sair so com ela, sem a prosa do motivo.
     const r = await escrever({ analise, pergunta, sinal: req.signal });
+    concluir(consultaId, r.texto);
     res.json({
-      ...corpoAnalise(pergunta, analise), texto: r.texto, modelo: r.modelo, prosa: r.prosa,
+      ...corpoAnalise(pergunta, analise, consultaId), texto: r.texto, modelo: r.modelo, prosa: r.prosa,
     });
   } catch (e) {
     next(e);
@@ -91,7 +114,7 @@ router.post('/consultor/stream', async (req, res, next) => {
     return;
   }
 
-  const { pergunta, analise } = preparado;
+  const { pergunta, analise, consultaId } = preparado;
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -108,7 +131,7 @@ router.post('/consultor/stream', async (req, res, next) => {
     res.write(`event: ${evento}\ndata: ${JSON.stringify(dados)}\n\n`);
   };
 
-  enviar('analise', corpoAnalise(pergunta, analise));
+  enviar('analise', corpoAnalise(pergunta, analise, consultaId));
 
   try {
     // O primeiro `pedaco` e a frase da decisao, que sai antes de o modelo ser
@@ -119,17 +142,45 @@ router.post('/consultor/stream', async (req, res, next) => {
       sinal: req.signal,
       aoPedaco: (pedaco) => enviar('pedaco', { texto: pedaco }),
     });
+    concluir(consultaId, r.texto);
     enviar('fim', { texto: r.texto, modelo: r.modelo, prosa: r.prosa });
   } catch (e) {
     if (e instanceof ErroOllama) {
       // Nao deve acontecer: `escrever` engole ErroOllama. Se acontecer, a frase
       // calculada ja foi enviada como pedaco, entao so fecha o stream.
+      concluir(consultaId, fraseDoVeredito(analise));
       enviar('fim', { texto: fraseDoVeredito(analise), modelo: null, prosa: false });
     } else {
       enviar('erro', { erro: e.message || 'Falha ao gerar o conselho.' });
     }
   } finally {
     if (!res.writableEnded) res.end();
+  }
+});
+
+// GET /api/consultor/historico?limite=50&nota=-1
+router.get('/consultor/historico', (req, res, next) => {
+  try {
+    const limite = inteiroPositivo(req.query.limite, 50, 500);
+    let nota;
+    if (req.query.nota !== undefined) {
+      nota = Number(req.query.nota);
+      if (nota !== 1 && nota !== -1) throw new ErroApi(400, 'Parametro "nota" deve ser 1 ou -1.');
+    }
+    res.json({ consultas: consultas.listar({ limite, nota }) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// POST /api/consultor/:id/avaliacao { nota: 1 | -1 | null, comentario? }
+router.post('/consultor/:id/avaliacao', (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw new ErroApi(400, 'O id deve ser um inteiro positivo.');
+    res.json({ consulta: consultas.avaliar(id, req.body || {}) });
+  } catch (e) {
+    next(e);
   }
 });
 

@@ -51,7 +51,10 @@ for (const [categoria, termos] of Object.entries(TERMOS)) {
 }
 
 // Devolve o mesmo formato que `extrairGasto`, ou null quando nao tem certeza.
-function tentarAtalho(mensagem) {
+// `aprendido` e o termo do vocabulario do usuario que casou com a mensagem
+// (vocabularioService.buscar). Ele vence a lista fixa: se o usuario ja corrigiu
+// esse termo uma vez, a correcao dele vale mais que o palpite do codigo.
+function tentarAtalho(mensagem, aprendido = null) {
   const texto = String(mensagem || '').trim();
   if (texto.length > 60) return null;
   if (PARCELA.test(texto) || RECORRENTE.test(texto)) return null;
@@ -67,8 +70,13 @@ function tentarAtalho(mensagem) {
   const palavras = semAcento(texto).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   let categoria = null;
   let encontrada = null;
-  for (const palavra of palavras) {
-    if (INDICE.has(palavra)) { categoria = INDICE.get(palavra); encontrada = palavra; break; }
+  if (aprendido) {
+    categoria = aprendido.categoria;
+    encontrada = aprendido.descricao;
+  } else {
+    for (const palavra of palavras) {
+      if (INDICE.has(palavra)) { categoria = INDICE.get(palavra); encontrada = palavra; break; }
+    }
   }
   if (!categoria) return null;
 
@@ -82,7 +90,12 @@ function tentarAtalho(mensagem) {
     valor_parcela: null,
     valor_total_compra: null,
     dia_vencimento: null,
-    _meta: { tentativas: 0, duracao_ms: 0, modelo: 'atalho' },
+    _meta: {
+      tentativas: 0,
+      duracao_ms: 0,
+      modelo: aprendido ? 'vocabulario' : 'atalho',
+      ...(aprendido ? { termo: aprendido.termo } : {}),
+    },
   };
 }
 

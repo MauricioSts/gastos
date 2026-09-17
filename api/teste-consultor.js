@@ -270,6 +270,20 @@ conferirQue('nao sugere parcela abaixo de R$ 50 por conta propria',
 conferir('parcelamento PEDIDO e respeitado mesmo com parcela baixa',
   analisarCompra({ valor: 300, parcelas: 12, mes: MES }).parcelado_pedido.parcelas, 12);
 
+// Pedido de 10x que so cabe mais adiante: a resposta chegou a trocar por "12x a
+// partir do mes que vem" em silencio, porque a busca por mes de inicio aceitava
+// qualquer numero de parcelas. Troca so vale quando o pedido nao cabe nunca, e
+// ai a frase precisa dizer isso.
+for (const valor of [900, 1500, 2400, 3600]) {
+  for (const reserva of [null, 300, 700]) {
+    const a = analisarCompra({ valor, parcelas: 10, mes: MES, reserva });
+    const plano = a.parcelado_a_partir || a.parcelado_sugerido;
+    if (!plano || a.parcelado_pedido.cabe || plano.parcelas === 10) continue;
+    conferirQue(`troca de 10x por ${plano.parcelas}x (${valor}, piso ${reserva}) e avisada`,
+      fraseDoVeredito(a).startsWith('Em 10x não cabe.'), fraseDoVeredito(a));
+  }
+}
+
 // -------------------------------------------------------------------------
 // Motivo calculado: a segunda frase da resposta. Tambem nao passa pelo modelo.
 // -------------------------------------------------------------------------

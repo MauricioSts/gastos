@@ -208,6 +208,13 @@ const comPiso = (frase, a) => {
     : `${limpa}.`;
 };
 
+// Quando a resposta usa outro numero de parcelas que o pedido, isso precisa
+// estar escrito: trocar 10x por 12x em silencio parece que a pergunta foi
+// ignorada.
+const trocaDoPedido = (a, n) => (a.parcelado_pedido && a.parcelado_pedido.parcelas !== n
+  ? `Em ${a.parcelado_pedido.parcelas}x não cabe. `
+  : '');
+
 function fraseDoVeredito(a) {
   if (a.tipo !== 'compra') {
     return `Você pode gastar ${real(a.retrato.cabe_hoje)} hoje sem estourar o seu ritmo de ${real(a.retrato.media_diaria)} por dia.`;
@@ -221,7 +228,7 @@ function fraseDoVeredito(a) {
   }
   const parc = a.parcelado_pedido?.cabe ? a.parcelado_pedido : a.parcelado_sugerido;
   if (parc) {
-    return `${comPiso(`Dá para comprar hoje, em ${parc.parcelas}x de ${real(parc.valor_parcela)}: a parcela cabe em cada um dos ${parc.parcelas} meses`, a)} À vista, não.`;
+    return `${trocaDoPedido(a, parc.parcelas)}${comPiso(`Dá para comprar hoje, em ${parc.parcelas}x de ${real(parc.valor_parcela)}: a parcela cabe em cada um dos ${parc.parcelas} meses`, a)} À vista, não.`;
   }
   // Ordem pelo veredito, nao pela ordem dos campos: quando o parcelamento
   // comeca antes do mes em que daria a vista, e ele a resposta.
@@ -232,7 +239,7 @@ function fraseDoVeredito(a) {
   if (a.parcelado_a_partir) {
     const ap = a.parcelado_a_partir;
     const janela = ciclo.janela(ap.mes_inicio);
-    const inicio = comPiso(`Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(ap.mes_inicio)}: ${ap.parcelas}x de ${real(ap.valor_parcela)}`, a);
+    const inicio = trocaDoPedido(a, ap.parcelas) + comPiso(`Dá a partir de ${diaMes(janela.inicio)}, na fatura de ${nomeMes(ap.mes_inicio)}: ${ap.parcelas}x de ${real(ap.valor_parcela)}`, a);
     // Por que nao antes: com o parcelamento comecando no ciclo seguinte, o
     // impedimento e o ciclo aberto e da para dizer a data exata. Mais adiante, o
     // impedimento e a folga de algum mes do meio -- afirmar "por causa deste

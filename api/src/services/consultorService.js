@@ -424,11 +424,19 @@ function analisarCompra({ valor, parcelas = null, mes, reserva = null }) {
   // Nada cabe comecando agora: procura o primeiro mes em que da para COMECAR
   // parcelado. Se o usuario disse um numero de parcelas, esse numero e testado
   // primeiro -- respeitar o que ele pediu vale mais que economizar um mes.
-  const aPartir = (cabeAgora || (pedido && pedido.cabe) || sugerido)
-    ? null
-    : parceladoAPartirDe(foto, valor, pedido
-      ? [pedido.parcelas, ...parcelasViaveis(valor).filter((n) => n !== pedido.parcelas)]
-      : parcelasViaveis(valor), margem);
+  // O numero pedido e procurado em TODOS os meses de inicio antes de qualquer
+  // outro: passando a lista inteira de uma vez, o laco por mes de inicio achava
+  // "12x a partir de out" antes de "10x a partir de nov", e a resposta trocava
+  // o parcelamento que a pessoa pediu sem avisar.
+  let aPartir = null;
+  if (!(cabeAgora || (pedido && pedido.cabe) || sugerido)) {
+    if (pedido) aPartir = parceladoAPartirDe(foto, valor, [pedido.parcelas], margem);
+    if (!aPartir) {
+      aPartir = parceladoAPartirDe(foto, valor, pedido
+        ? parcelasViaveis(valor).filter((n) => n !== pedido.parcelas)
+        : parcelasViaveis(valor), margem);
+    }
+  }
 
   const proximoMes = cabeAgora ? null : primeiroMesQueCabe(foto, valor, margem);
   const juntando = cabeAgora ? null : mesesGuardando(foto, valor, margem);

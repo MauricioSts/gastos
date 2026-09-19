@@ -172,3 +172,17 @@ CREATE TABLE IF NOT EXISTS consultas (
 );
 
 CREATE INDEX IF NOT EXISTS idx_consultas_nota ON consultas (nota);
+
+-- ---------------------------------------------------------------------------
+-- Passkeys (Face ID / Touch ID). Cada linha e um aparelho (ou chaveiro do
+-- iCloud) autorizado a entrar sem senha. So a chave publica fica aqui.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS passkeys (
+  id            TEXT    PRIMARY KEY,        -- credential id, base64url
+  chave_publica BLOB    NOT NULL,           -- COSE, como o autenticador entregou
+  contador      INTEGER NOT NULL DEFAULT 0,
+  transportes   TEXT,                       -- JSON, ex.: ["internal","hybrid"]
+  nome          TEXT    NOT NULL,           -- rotulo para reconhecer na lista
+  criado_em     TEXT    NOT NULL,
+  usado_em      TEXT
+);

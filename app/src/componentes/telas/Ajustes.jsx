@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react';
 import {
   nomeMes, dataCurta, USAR_MOCK, LISTA_CAT, ROTULO_CAT,
-  getVocabulario, ensinarTermo, esquecerTermo,
+  getVocabulario, ensinarTermo, esquecerTermo, logout,
+  suportaFaceId, ativarFaceId, getPasskeys, removerPasskey, nomeDoAparelho,
 } from '../../api';
 import { fmt } from '../../utils/formato';
 import { cor, MONO, SANS, rotulo } from '../../tema';
+
+const botaoLargo = (extra = {}) => ({
+  width: '100%', border: `1px solid ${cor.divisorForte}`, borderRadius: 16, padding: '14px 15px',
+  minHeight: 44, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', ...extra,
+});
 
 // Vocabulário: como você chama as coisas. Cada categoria corrigida num
 // lançamento entra aqui sozinha; dá para ensinar um termo antes de usar e
@@ -111,6 +118,68 @@ function Vocabulario({ aoErro }) {
   );
 }
 
+// Face ID: aparelhos que entram sem senha. Remover aqui tira o acesso do
+// aparelho mesmo que a passkey continue no chaveiro dele.
+function FaceId({ aoErro }) {
+  const [lista, setLista] = useState(null);
+  const [ativando, setAtivando] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    getPasskeys()
+      .then((l) => { if (vivo) setLista(l); })
+      .catch((e) => { if (vivo) { setLista([]); aoErro(e.message || 'Não consegui carregar o Face ID.'); } });
+    return () => { vivo = false; };
+  }, [aoErro]);
+
+  const ativar = async () => {
+    setAtivando(true);
+    try {
+      if (await ativarFaceId(nomeDoAparelho())) setLista(await getPasskeys());
+    } catch (e) {
+      aoErro(e.message || 'Não consegui ativar o Face ID.');
+    }
+    setAtivando(false);
+  };
+
+  const remover = async (id) => {
+    try {
+      await removerPasskey(id);
+      setLista((l) => (l || []).filter((p) => p.id !== id));
+    } catch (e) {
+      aoErro(e.message || 'Não consegui remover.');
+    }
+  };
+
+  return (
+    <>
+      <div style={rotulo({ margin: '26px 0 9px' })}>Face ID</div>
+      {lista === null && (
+        <div style={{ fontFamily: MONO, fontSize: 10.5, opacity: 0.45 }}>carregando…</div>
+      )}
+      {lista && lista.map((p) => (
+        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 2px', borderBottom: `1px solid ${cor.divisor}` }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 15 }}>{p.nome}</span>
+          <span style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.45, flex: 'none' }}>
+            {p.usado_em ? `usado ${dataCurta(p.usado_em.slice(0, 10))}` : `desde ${dataCurta(p.criado_em.slice(0, 10))}`}
+          </span>
+          <button type="button" onClick={() => remover(p.id)} aria-label={`Remover Face ID ${p.nome}`} style={{ opacity: 0.5, padding: '0 6px', minHeight: 44, fontSize: 14 }}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={ativar} disabled={ativando} style={botaoLargo({ marginTop: 10, opacity: ativando ? 0.5 : 1 })}>
+        <span>{ativando ? 'Aguardando…' : 'Ativar neste aparelho'}</span>
+        <span style={{ color: cor.fosforo }}>+</span>
+      </button>
+      <div style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.32, marginTop: 9, lineHeight: 1.7 }}>
+        A passkey fica no chaveiro do iCloud e entra sem senha. Trocar a senha
+        não remove o Face ID: remova aqui o aparelho perdido.
+      </div>
+    </>
+  );
+}
+
 // Ajustes: renda do mês, ciclo da fatura, aviso, vocabulário, conexão e dados.
 export default function Ajustes({
   mes, saldo, ciclo, rendas, avisar, aoAlternarAviso, aoTestarAviso, aoSalvarFechamento,
@@ -155,12 +224,6 @@ export default function Ajustes({
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '13px 15px', minHeight: 44,
   };
-
-  const botaoLargo = (extra = {}) => ({
-    width: '100%', border: `1px solid ${cor.divisorForte}`, borderRadius: 16, padding: '14px 15px',
-    minHeight: 44, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    fontFamily: MONO, fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', ...extra,
-  });
 
   return (
     <div style={{ padding: '16px 16px 10px' }}>
@@ -268,6 +331,8 @@ export default function Ajustes({
       {/* ------------------------------ Vocabulário ----------------------------- */}
       <Vocabulario aoErro={aoErro} />
 
+      {suportaFaceId() && <FaceId aoErro={aoErro} />}
+
       {/* -------------------------------- Conexão ------------------------------- */}
       <div style={rotulo({ margin: '26px 0 9px' })}>Conexão</div>
       <div style={{ border: `1px solid ${cor.divisorForte}`, borderRadius: 16, ...linha }}>
@@ -287,6 +352,12 @@ export default function Ajustes({
         <span>Refazer configuração</span>
         <span>↺</span>
       </button>
+      {!USAR_MOCK && (
+        <button type="button" onClick={logout} style={botaoLargo({ marginTop: 10, border: '1px solid rgba(255,90,60,.35)', color: cor.alerta })}>
+          <span>Sair deste aparelho</span>
+          <span>⏻</span>
+        </button>
+      )}
 
       <div style={{ fontFamily: MONO, fontSize: 9.5, opacity: 0.32, marginTop: 22, lineHeight: 1.8 }}>
         {USAR_MOCK

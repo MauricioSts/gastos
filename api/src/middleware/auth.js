@@ -1,7 +1,9 @@
-// Autenticacao por token estatico no header X-API-Token.
-// A API fica exposta na internet pelo Caddy, entao nenhuma rota /api e aberta.
+// Autenticacao: token de sessao do login (o app) ou token estatico no header
+// X-API-Token (scripts e testes). A API fica exposta na internet pelo Caddy,
+// entao nenhuma rota /api e aberta alem de health e login.
 const crypto = require('crypto');
 const config = require('../config');
+const { sessaoValida } = require('../services/sessao');
 
 const tokenEsperado = Buffer.from(config.apiToken, 'utf8');
 
@@ -18,7 +20,7 @@ function auth(req, res, next) {
   const header = req.get('X-API-Token')
     || (req.get('Authorization') || '').replace(/^Bearer\s+/i, '');
 
-  if (!tokenConfere(header)) {
+  if (!tokenConfere(header) && !sessaoValida(header)) {
     return res.status(401).json({ erro: 'Token invalido ou ausente. Envie o header X-API-Token.' });
   }
   return next();

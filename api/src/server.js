@@ -13,6 +13,8 @@ const rotaBoot = require('./routes/boot');
 const rotaConsultor = require('./routes/consultor');
 const rotaCaixinhas = require('./routes/caixinhas');
 const rotaVocabulario = require('./routes/vocabulario');
+const rotaLogin = require('./routes/login');
+const rotaPasskeys = require('./routes/passkeys');
 
 const app = express();
 
@@ -30,8 +32,10 @@ app.use(cors);
 // Rate limit antes da auth para tambem frear tentativa de forca bruta no token.
 app.use('/api', rateLimit);
 
-// Health e publico para monitoramento externo; o resto exige token.
+// Health e publico para monitoramento externo; login e a porta de entrada.
+// O resto exige token.
 app.use('/api', rotaHealth);
+app.use('/api', rotaLogin);
 app.use('/api', auth);
 app.use('/api/gastos', rotaGastos);
 app.use('/api', rotaFinancas);
@@ -40,6 +44,7 @@ app.use('/api', rotaBoot);
 app.use('/api', rotaConsultor);
 app.use('/api', rotaCaixinhas);
 app.use('/api', rotaVocabulario);
+app.use('/api', rotaPasskeys);
 
 app.use(naoEncontrado);
 app.use(tratarErro);

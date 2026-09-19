@@ -10,9 +10,158 @@
 // `por_categoria`/`fixas`/`parcelas`). A tradução acontece toda aqui dentro,
 // nas funções `normaliza*` — é justamente para isso que esta camada existe.
 
+import { browserSupportsWebAuthn, startAuthentication, startRegistration } from '@simplewebauthn/browser';
+
 const BASE_URL = import.meta.env.VITE_API_URL || '';
-const TOKEN = import.meta.env.VITE_API_TOKEN || '';
 export const USAR_MOCK = import.meta.env.VITE_USAR_MOCK !== 'false';
+
+// ---------------------------------------------------------------------------
+// Sessão
+// ---------------------------------------------------------------------------
+// O app não carrega mais token no bundle: tudo que é VITE_* fica visível para
+// qualquer um que abra o DevTools. Quem entra é quem sabe usuário e senha, e o
+// token de sessão que o backend devolve fica só neste navegador.
+const CHAVE_SESSAO = 'minimau:sessao';
+
+function lerSessao() {
+  try {
+    const s = JSON.parse(localStorage.getItem(CHAVE_SESSAO) || 'null');
+    if (!s?.token || new Date(s.expira_em).getTime() <= Date.now()) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+export const temSessao = () => USAR_MOCK || !!lerSessao();
+const tokenSessao = () => lerSessao()?.token || '';
+
+// POST sem sessão: só as rotas de login usam.
+async function postPublico(rota, dados) {
+  let r;
+  try {
+    r = await fetch(`${BASE_URL}${rota}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dados),
+    });
+  } catch (e) {
+    throw Object.assign(new Error('Não consegui falar com o servidor.'), { status: 0, causa: e });
+  }
+  const corpo = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(corpo.erro || 'Falha no login.'), { status: r.status });
+  return corpo;
+}
+
+function guardaSessao(corpo) {
+  try {
+    localStorage.setItem(CHAVE_SESSAO, JSON.stringify(corpo));
+  } catch {
+    throw new Error('Este navegador não deixa guardar o login (modo privado?).');
+  }
+}
+
+export async function login(usuario, senha) {
+  guardaSessao(await postPublico('/api/login', { usuario, senha }));
+}
+
+// ---------------------------------------------------------------------------
+// Face ID (passkey)
+// ---------------------------------------------------------------------------
+// A passkey mora no chaveiro do aparelho (e no iCloud); o servidor só guarda a
+// chave pública. `minimau:passkey` lembra que este aparelho já tem uma, para a
+// tela de login oferecer o Face ID primeiro e não insistir no convite.
+const CHAVE_PASSKEY = 'minimau:passkey';
+
+export const suportaFaceId = () => !USAR_MOCK && browserSupportsWebAuthn();
+
+export function temFaceId() {
+  try { return localStorage.getItem(CHAVE_PASSKEY) === '1'; } catch { return false; }
+}
+
+function marcaFaceId(tem) {
+  try {
+    if (tem) localStorage.setItem(CHAVE_PASSKEY, '1');
+    else localStorage.removeItem(CHAVE_PASSKEY);
+  } catch { /* só perde o atalho na tela de login */ }
+}
+
+// Traduz as recusas do navegador. Cancelar o Face ID não é erro: volta null.
+function erroFaceId(e) {
+  if (e?.name === 'NotAllowedError' || e?.name === 'AbortError') return null;
+  if (e?.name === 'InvalidStateError') return new Error('Este aparelho já tem Face ID cadastrado.');
+  return e?.status !== undefined ? e : new Error(e?.message || 'O Face ID falhou.');
+}
+
+export async function loginFaceId() {
+  const opcoes = await postPublico('/api/login/passkey/opcoes', {});
+  let resposta;
+  try {
+    resposta = await startAuthentication({ optionsJSON: opcoes });
+  } catch (e) {
+    const erro = erroFaceId(e);
+    if (erro) throw erro;
+    return false;
+  }
+  try {
+    guardaSessao(await postPublico('/api/login/passkey', resposta));
+  } catch (e) {
+    if (e.status === 401) marcaFaceId(false);
+    throw e;
+  }
+  marcaFaceId(true);
+  return true;
+}
+
+// Cadastra o Face ID deste aparelho. Exige sessão aberta. Volta false se a
+// pessoa cancelou.
+export async function ativarFaceId(nome) {
+  const opcoes = await req('/api/passkeys/opcoes', { method: 'POST', body: '{}' });
+  let resposta;
+  try {
+    resposta = await startRegistration({ optionsJSON: opcoes });
+  } catch (e) {
+    const erro = erroFaceId(e);
+    if (erro?.message.startsWith('Este aparelho já')) marcaFaceId(true);
+    if (erro) throw erro;
+    return false;
+  }
+  await req('/api/passkeys', { method: 'POST', body: JSON.stringify({ resposta, nome }) });
+  marcaFaceId(true);
+  return true;
+}
+
+export async function getPasskeys() {
+  return USAR_MOCK ? [] : req('/api/passkeys');
+}
+
+export async function removerPasskey(id) {
+  await req(`/api/passkeys/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// Nome para reconhecer o aparelho na lista de Ajustes.
+export function nomeDoAparelho() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  if (/Android/.test(ua)) return 'Android';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Windows/.test(ua)) return 'Windows';
+  return 'Aparelho';
+}
+
+// Sai e apaga o retrato do último boot: ele tem saldo e gastos, e não pode
+// ficar para quem pegar o aparelho depois.
+export function logout() {
+  try { localStorage.removeItem(CHAVE_SESSAO); } catch { /* nada a fazer */ }
+  limparSnapshot();
+  window.dispatchEvent(new Event('minimau:sair'));
+}
+
+// 401 com sessão = sessão expirada ou senha trocada no servidor.
+function checaSessao(status) {
+  if (status === 401 && !USAR_MOCK) logout();
+}
 
 const TZ = 'America/Sao_Paulo';
 
@@ -98,13 +247,14 @@ async function req(rota, opts = {}) {
   try {
     r = await fetch(BASE_URL + rota, {
       ...opts,
-      headers: { 'Content-Type': 'application/json', 'X-API-Token': TOKEN, ...(opts.headers || {}) },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenSessao()}`, ...(opts.headers || {}) },
     });
   } catch (e) {
     throw Object.assign(new Error('Não consegui falar com o servidor.'), { status: 0, causa: e });
   }
   const corpo = await r.json().catch(() => ({}));
   if (!r.ok) {
+    checaSessao(r.status);
     throw Object.assign(new Error(corpo.erro || 'Falha na requisição'), { status: r.status, corpo });
   }
   return corpo;
@@ -900,7 +1050,7 @@ export async function consultar({ pergunta, mes, aoAnalise, aoTexto, sinal }) {
 
   const r = await fetch(`${BASE_URL}/api/consultor/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-API-Token': TOKEN },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenSessao()}` },
     body: JSON.stringify({ pergunta, ...(mes ? { mes } : {}) }),
     signal: sinal,
   }).catch((e) => {
@@ -909,6 +1059,7 @@ export async function consultar({ pergunta, mes, aoAnalise, aoTexto, sinal }) {
 
   // Validação falha antes de o stream abrir, e volta como JSON normal.
   if (!r.ok) {
+    checaSessao(r.status);
     const corpo = await r.json().catch(() => ({}));
     throw Object.assign(new Error(corpo.erro || 'Falha ao consultar.'), { status: r.status });
   }

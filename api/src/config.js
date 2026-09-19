@@ -31,7 +31,26 @@ const config = {
   conselhoProsa: process.env.CONSELHO_PROSA === '1',
   // Caminho do arquivo SQLite (relativo resolve a partir da raiz do projeto).
   dbPath: path.resolve(__dirname, '..', process.env.DB_PATH || 'data/gastos.db'),
+  // Token estatico: continua valendo para scripts e testes (curl, test.sh).
+  // O app no navegador NAO usa mais: tudo que vai no bundle e publico.
   apiToken: process.env.API_TOKEN || '',
+  // Login do app (usuario unico). Senha guardada so como hash scrypt; gere com
+  // `node definir-senha.js <usuario>`.
+  login: {
+    usuario: (process.env.LOGIN_USUARIO || '').trim().toLowerCase(),
+    senhaHash: process.env.LOGIN_SENHA_HASH || '',
+  },
+  sessao: {
+    segredo: process.env.SESSAO_SEGREDO || process.env.API_TOKEN || '',
+    dias: num('SESSAO_DIAS', 30),
+  },
+  // Passkey (Face ID). rpID e o dominio do app, nao da API: a chave nasce
+  // presa a ele. As origens aceitas sao as de CORS_ORIGENS que batem com o
+  // rpID (localhost so funciona com PASSKEY_RP_ID=localhost).
+  passkey: {
+    rpId: (process.env.PASSKEY_RP_ID || 'gastos.mauriciosts.com').trim(),
+    rpNome: process.env.PASSKEY_RP_NOME || 'Minimau',
+  },
   timezone: process.env.TZ_APP || 'America/Sao_Paulo',
   // Ciclo do cartao. O mes de referencia do app NAO e o mes do calendario:
   // ele vai do dia seguinte ao fechamento ate o fechamento seguinte, porque e

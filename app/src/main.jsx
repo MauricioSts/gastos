@@ -1,12 +1,33 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import Login from './componentes/telas/Login';
+import { temSessao } from './api';
+import { esconderSplash } from './splash';
 import './fontes.css';
 import './index.css';
 
+// Sem sessão, nem o App monta: ele pediria dados ao backend no boot. O logout
+// (botão em Ajustes ou 401 em qualquer chamada) volta para cá.
+function Portao() {
+  const [logado, setLogado] = useState(temSessao);
+
+  useEffect(() => {
+    const sair = () => setLogado(false);
+    window.addEventListener('minimau:sair', sair);
+    return () => window.removeEventListener('minimau:sair', sair);
+  }, []);
+
+  useEffect(() => {
+    if (!logado) esconderSplash();
+  }, [logado]);
+
+  return logado ? <App /> : <Login aoEntrar={() => setLogado(true)} />;
+}
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <Portao />
   </React.StrictMode>,
 );
 

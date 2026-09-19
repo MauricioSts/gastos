@@ -45,7 +45,7 @@ export default function Login({ aoEntrar }) {
 
   const entrar = async (e) => {
     e.preventDefault();
-    if (!usuario.trim() || !senha) { setErro('Informe usuário e senha.'); return; }
+    if (!usuario.trim() || !senha) { setErro('Informe e-mail e senha.'); return; }
     setEntrando(true);
     setErro('');
     try {
@@ -142,10 +142,10 @@ export default function Login({ aoEntrar }) {
           </>
         )}
 
-        <label htmlFor="login-usuario" style={rotuloCampo}>Usuário</label>
+        <label htmlFor="login-usuario" style={rotuloCampo}>E-mail</label>
         <input
           id="login-usuario" value={usuario} onChange={(e) => setUsuario(e.target.value)}
-          autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+          type="email" inputMode="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
           style={campo}
         />
 

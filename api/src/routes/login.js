@@ -44,12 +44,12 @@ router.post('/login', (req, res) => {
 
   const { usuario, senha } = req.body || {};
   if (typeof usuario !== 'string' || typeof senha !== 'string' || !usuario || !senha) {
-    return res.status(400).json({ erro: 'Informe usuário e senha.' });
+    return res.status(400).json({ erro: 'Informe e-mail e senha.' });
   }
 
   if (!autenticar(usuario, senha)) {
     contaErro(req);
-    return res.status(401).json({ erro: 'Usuário ou senha incorretos.' });
+    return res.status(401).json({ erro: 'E-mail ou senha incorretos.' });
   }
 
   erros.delete(req.ip || 'desconhecido');
